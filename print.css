@@ -1,0 +1,209 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+@page {
+  size: A4;
+  margin: 12mm 12mm 12mm 12mm;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #000;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.print-root {
+  width: 210mm;
+  margin: 0 auto;
+  background: #fff;
+}
+
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm 12mm 10mm 12mm;
+  page-break-after: always;
+  position: relative;
+}
+
+.page:last-child {
+  page-break-after: auto;
+}
+
+.garuda {
+  display: block;
+  text-align: center;
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 2mm;
+  font-family: 'Garuda', 'Sarabun', sans-serif;
+}
+
+.doc-title-top {
+  text-align: center;
+  font-size: 16px;
+  margin-bottom: 4mm;
+}
+
+.memo-title {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  margin: 8mm 0 6mm;
+}
+
+.center { text-align: center; }
+.right { text-align: right; }
+.bold { font-weight: 700; }
+
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+.mt-3 { margin-top: 12px; }
+.mt-4 { margin-top: 16px; }
+.mt-5 { margin-top: 22px; }
+.mt-6 { margin-top: 28px; }
+
+.indent {
+  text-indent: 48px;
+}
+
+.row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.line-fill {
+  display: inline-block;
+  border-bottom: 1px dotted #000;
+  min-width: 120px;
+  height: 20px;
+  vertical-align: bottom;
+}
+
+.line-fill.wide { min-width: 240px; }
+.line-fill.xwide { min-width: 360px; }
+
+.sign-block {
+  text-align: center;
+  margin-top: 18px;
+}
+
+.sign-line {
+  display: inline-block;
+  min-width: 240px;
+  border-bottom: 1px dotted #000;
+  height: 20px;
+}
+
+.sign-line.sm {
+  min-width: 180px;
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.doc-table th,
+.doc-table td {
+  border: 1px solid #000;
+  padding: 6px 6px;
+  vertical-align: top;
+  font-size: 14px;
+}
+
+.doc-table th {
+  text-align: center;
+  font-weight: 700;
+}
+
+.doc-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.doc-table .mid {
+  text-align: center;
+}
+
+.note-box {
+  margin-top: 8px;
+}
+
+.tight p,
+.tight div {
+  margin: 0;
+}
+
+.kruut-space {
+  height: 22mm;
+}
+
+.approve-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: 60mm;
+}
+
+.approve-page .approve-line {
+  text-align: center;
+  margin-top: 14px;
+}
+
+.small {
+  font-size: 13px;
+}
+
+.print-actions {
+  display: none;
+}
+
+@media screen {
+  body {
+    background: #e5e7eb;
+  }
+  .print-root {
+    box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.12);
+  }
+}
+
+/* ===== ลายเซ็นรายงานผลพิจารณา ===== */
+.report-consideration-sign {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.report-sign-item {
+  text-align: center;
+}
+
+.report-approve-text {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .print-root {
+    box-shadow: none;
+  }
+  [style*="page-break-inside:avoid"] {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
