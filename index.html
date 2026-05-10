@@ -103,6 +103,18 @@ html,body{font-family:'Sarabun',sans-serif;font-size:15px;line-height:1.55;color
 .btn-print{background:var(--green-light);color:var(--green);border-color:var(--green-border);}
 .btn-del{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:15px;padding:0 4px;}
 .btn-del:hover{color:var(--red);}
+.drag-handle{cursor:grab;color:#cbd5e1;font-size:16px;padding:0 4px;user-select:none;touch-action:none;}
+.drag-handle:active{cursor:grabbing;}
+.drag-over{background:#eff6ff !important;outline:2px dashed #3b82f6;outline-offset:-2px;}
+.dragging{opacity:.4;}
+
+/* Print preview modal */
+#printPreviewModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99998;flex-direction:column;}
+#printPreviewModal.open{display:flex;}
+.preview-toolbar{background:#1e293b;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.preview-toolbar .preview-title{flex:1;font-weight:700;font-size:14px;}
+.preview-frame-wrap{flex:1;overflow-y:auto;background:#6b7280;padding:20px;display:flex;justify-content:center;}
+.preview-frame-wrap iframe{width:210mm;min-height:297mm;border:none;background:#fff;box-shadow:0 4px 32px rgba(0,0,0,.3);border-radius:2px;}
 
 /* ═══════════════════════════════════
    CARDS
@@ -248,18 +260,36 @@ tbody tr:last-child td{border-bottom:none;}
 /* ═══════════════════════════════════
    TOAST
 ═══════════════════════════════════ */
-#toastBox{position:fixed;right:20px;bottom:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:320px;}
-.toast-item{background:#fff;border:1px solid var(--line);border-left:4px solid var(--blue-mid);border-radius:var(--radius);padding:11px 14px;font-weight:700;font-size:13px;box-shadow:var(--shadow-md);opacity:0;transform:translateY(8px);transition:.2s ease;}
-.toast-item.show{opacity:1;transform:translateY(0);}
-.toast-success{border-left-color:var(--green);}
-.toast-error{border-left-color:var(--red);}
-.toast-info{border-left-color:var(--blue-mid);}
+#toastBox{position:fixed;right:20px;bottom:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;max-width:340px;}
+.toast-item{background:#fff;border-radius:12px;padding:12px 16px;font-size:13px;box-shadow:0 4px 24px rgba(0,0,0,.13);opacity:0;transform:translateX(40px);transition:.3s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:flex-start;gap:10px;position:relative;overflow:hidden;min-width:220px;}
+.toast-item.show{opacity:1;transform:translateX(0);}
+.toast-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.toast-body{flex:1;min-width:0;}
+.toast-msg{font-weight:600;color:#1e293b;line-height:1.4;}
+.toast-progress{position:absolute;bottom:0;left:0;height:3px;border-radius:0 0 12px 12px;animation:toastProgress var(--toast-dur,3s) linear forwards;}
+@keyframes toastProgress{from{width:100%;}to{width:0%;}}
+.toast-success .toast-progress{background:var(--green);}
+.toast-error   .toast-progress{background:var(--red);}
+.toast-info    .toast-progress{background:var(--blue-mid);}
+.toast-warn    .toast-progress{background:#f59e0b;}
+.toast-success{border-left:3px solid var(--green);}
+.toast-error  {border-left:3px solid var(--red);}
+.toast-info   {border-left:3px solid var(--blue-mid);}
+.toast-warn   {border-left:3px solid #f59e0b;}
+
+/* ── Skeleton ── */
+
+/* ── Confetti canvas ── */
+#confettiCanvas{position:fixed;inset:0;pointer-events:none;z-index:99999;}
 
 /* ═══════════════════════════════════
    LOADING
 ═══════════════════════════════════ */
-#globalLoading{display:none;position:fixed;inset:0;background:rgba(15,23,42,.2);z-index:9998;align-items:center;justify-content:center;}
-.loading-card{background:#fff;border-radius:var(--radius-lg);padding:16px 28px;font-weight:700;font-size:14px;box-shadow:var(--shadow-md);}
+#globalLoading{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:9998;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+.loading-card{background:#fff;border-radius:14px;padding:20px 32px;font-size:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);display:flex;align-items:center;gap:14px;min-width:180px;}
+.loading-spinner{width:22px;height:22px;border:3px solid #e2e8f0;border-top-color:var(--blue-mid);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+.loading-msg{font-weight:600;color:#1e293b;font-size:14px;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
 /* ═══════════════════════════════════
    LOGIN
@@ -495,13 +525,59 @@ tbody tr:last-child td{border-bottom:none;}
             </div>
           </div>
 
-          <!-- dept bar list -->
+          <!-- proc type stat -->
           <div class="card card-body">
-            <div class="card-hd">
-              <span class="card-title">งบประมาณตามฝ่าย</span>
+            <div class="card-hd"><span class="card-title">สถิติแยกประเภท</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+              <div style="background:#eff6ff;border-radius:10px;padding:14px;text-align:center;">
+                <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">🛒 จัดซื้อ</div>
+                <div style="font-size:22px;font-weight:800;color:#1d4ed8;" id="buyCount">0</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px;">รายการ</div>
+                <div style="font-size:13px;font-weight:600;color:#1d4ed8;margin-top:4px;" id="buyTotal">0.00 บาท</div>
+              </div>
+              <div style="background:#fef9c3;border-radius:10px;padding:14px;text-align:center;">
+                <div style="font-size:11px;font-weight:700;color:#854d0e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">🔧 จัดจ้าง</div>
+                <div style="font-size:22px;font-weight:800;color:#854d0e;" id="hireCount">0</div>
+                <div style="font-size:12px;color:#64748b;margin-top:2px;">รายการ</div>
+                <div style="font-size:13px;font-weight:600;color:#854d0e;margin-top:4px;" id="hireTotal">0.00 บาท</div>
+              </div>
             </div>
+            <div class="card-hd" style="margin-top:16px;"><span class="card-title">งบประมาณตามฝ่าย</span></div>
             <div id="deptBarList">
               <div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px;">กำลังโหลด...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- monthly chart -->
+        <div class="card card-body" style="margin-bottom:16px;">
+          <div class="card-hd">
+            <span class="card-title">แนวโน้มการใช้งบ 12 เดือนย้อนหลัง</span>
+          </div>
+          <div style="position:relative;height:200px;margin-top:8px;">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- top vendors + pending alerts -->
+        <div class="dash-grid" style="margin-bottom:16px;">
+
+          <!-- top 5 vendors -->
+          <div class="card card-body">
+            <div class="card-hd"><span class="card-title">Top 5 ร้านค้า/ผู้รับจ้าง</span></div>
+            <div id="topVendorList" style="margin-top:8px;">
+              <div style="text-align:center;color:#94a3b8;padding:16px;font-size:13px;">กำลังโหลด...</div>
+            </div>
+          </div>
+
+          <!-- pending alerts -->
+          <div class="card card-body">
+            <div class="card-hd">
+              <span class="card-title">⚠️ รายการค้างดำเนินการ</span>
+              <span id="pendingBadge" style="display:none;background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;"></span>
+            </div>
+            <div id="pendingAlertList" style="margin-top:8px;">
+              <div style="text-align:center;color:#94a3b8;padding:16px;font-size:13px;">กำลังโหลด...</div>
             </div>
           </div>
         </div>
@@ -561,7 +637,9 @@ tbody tr:last-child td{border-bottom:none;}
               <div class="field f6"><label>ฝ่าย / งาน</label><input id="reqDept" class="input" type="text"></div>
               <div class="field f4"><label>เลขที่หนังสือ (ที่ ศธ.)</label><input id="reqDocNo" class="input" type="text" placeholder="เช่น 04234/125"></div>
               <div class="field f8"><label>ชื่อโครงการ / งานจัดซื้อ</label><input id="reqProject" class="input" type="text" placeholder="เช่น จัดซื้อวัสดุสำนักงาน"></div>
-              <div class="field f12"><label>เหตุผลและความจำเป็น</label><textarea id="reqReason" class="textarea" placeholder="อธิบายเหตุผลและความจำเป็น"></textarea></div>
+              <div class="field f12"><label>วัตถุประสงค์ (เพื่อ...)</label><input id="reqObjective" class="input" type="text" placeholder="เช่น เพื่อใช้ในการดำเนินงานของโรงเรียน"></div>
+              <div class="field f12"><label>เหตุผลและความจำเป็นที่ต้องซื้อ/จ้าง (ข้อ 1)</label><textarea id="reqReason" class="textarea" placeholder="อธิบายเหตุผลและความจำเป็น"></textarea></div>
+              <div class="field f12"><label>รายละเอียดสิ่งที่จะซื้อ/จ้าง (ข้อ 2)</label><textarea id="reqItemDetail" class="textarea" placeholder="อธิบายรายละเอียดของสิ่งที่จะซื้อหรืองานที่จะจ้าง"></textarea></div>
               <div id="fieldScopeOfWork" class="field f12" style="display:none;"><label>ขอบเขตของงาน (TOR) <span style="color:#94a3b8;font-size:12px;">แต่ละบรรทัด = 1 ข้อ</span></label><textarea id="reqScopeOfWork" class="textarea" rows="4" placeholder="2.1 ...&#10;2.2 ...&#10;2.3 ..."></textarea></div>
               <div class="field f6"><label>แผนงาน / แหล่งงบประมาณ</label><input id="reqBudgetSource" class="input" type="text" placeholder="เช่น งบอุดหนุนรายหัว"></div>
               <div class="field f6"><label>กิจกรรมหลัก</label><input id="reqActivity" class="input" type="text" placeholder="เช่น งานบริหารทั่วไป"></div>
@@ -581,6 +659,13 @@ tbody tr:last-child td{border-bottom:none;}
               <div class="field f4"><label>วันที่ใบเสนอราคา</label><input id="reqQuoteDate" class="input" type="date"></div>
               <div class="field f3"><label>กำหนดส่งมอบ (วัน)</label><input id="reqDelivery" class="input" type="number" min="1" placeholder="7"></div>
             </div>
+            <div class="card-title" style="margin:14px 0 10px;">บัญชีธนาคารผู้ขาย / ร้านค้า</div>
+            <div class="form-grid">
+              <div class="field f6"><label>เลขที่บัญชีธนาคาร</label><input id="reqVendorBankAccount" class="input" type="text" placeholder="เลขที่บัญชี"></div>
+              <div class="field f6"><label>ชื่อบัญชี</label><input id="reqVendorBankName" class="input" type="text" placeholder="ชื่อบัญชีธนาคาร"></div>
+              <div class="field f6"><label>ธนาคาร</label><input id="reqVendorBankBankName" class="input" type="text" placeholder="เช่น กรุงไทย, ออมสิน"></div>
+              <div class="field f6"><label>สาขา</label><input id="reqVendorBankBranch" class="input" type="text" placeholder="สาขา"></div>
+            </div>
           </div>
 
           <!-- ส่วนที่ 3 -->
@@ -592,6 +677,7 @@ tbody tr:last-child td{border-bottom:none;}
             <div class="tbl-wrap">
               <table>
                 <thead><tr>
+                  <th style="width:24px;"></th>
                   <th>รายการพัสดุ</th>
                   <th style="width:80px;text-align:right;">จำนวน</th>
                   <th style="width:70px;">หน่วย</th>
@@ -611,9 +697,9 @@ tbody tr:last-child td{border-bottom:none;}
               <div style="font-size:12px;color:var(--blue-mid);opacity:.85;" id="totalText">ศูนย์บาทถ้วน</div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-              <button id="btnSaveReq" class="btn btn-primary">💾 บันทึก</button>
-              <button id="btnSubmitReq" class="btn btn-success">📤 ส่งขอตรวจรับ</button>
-              <button id="btnPrintReq" class="btn btn-outline">🖨️ พิมพ์เอกสาร</button>
+              <button id="btnSaveReq" class="btn btn-primary" title="Ctrl+S">💾 บันทึก <kbd style="font-size:10px;background:rgba(255,255,255,.2);border-radius:3px;padding:1px 4px;margin-left:4px;">Ctrl+S</kbd></button>
+              <button id="btnSubmitReq" class="btn btn-success" title="Ctrl+Enter">📤 ส่งขอตรวจรับ</button>
+              <button id="btnPrintReq" class="btn btn-outline" title="Ctrl+P">🖨️ พิมพ์เอกสาร</button>
               <button id="btnResetReq" class="btn btn-ghost">🔄 ล้างฟอร์ม</button>
             </div>
             <div class="alert alert-info" style="margin-top:12px;">
@@ -624,14 +710,29 @@ tbody tr:last-child td{border-bottom:none;}
 
         <!-- Tab: รายการของฉัน -->
         <div id="tabMyReq" class="tab-pane">
-          <div class="section-hd">
+          <div class="section-hd" style="flex-wrap:wrap;gap:10px;margin-bottom:12px;">
             <span class="section-title">คำขอซื้อของฉัน</span>
-            <button id="btnRefreshMyList" class="btn btn-ghost btn-sm">🔄 รีเฟรช</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input id="myReqSearch" class="input" type="text" placeholder="🔍 ค้นหาโครงการ/ผู้ขาย..." style="width:200px;padding:7px 11px;font-size:13px;">
+              <select id="myReqStatusFilter" class="select" style="width:140px;padding:7px 11px;font-size:13px;">
+                <option value="">ทุกสถานะ</option>
+                <option value="ร่าง">ร่าง</option>
+                <option value="รออนุมัติ">รออนุมัติ</option>
+                <option value="ตรวจรับแล้ว">ตรวจรับแล้ว</option>
+                <option value="เบิกจ่ายแล้ว">เบิกจ่ายแล้ว</option>
+              </select>
+              <select id="myReqTypeFilter" class="select" style="width:120px;padding:7px 11px;font-size:13px;">
+                <option value="">ทุกประเภท</option>
+                <option value="จัดซื้อ">🛒 จัดซื้อ</option>
+                <option value="จัดจ้าง">🔧 จัดจ้าง</option>
+              </select>
+              <button id="btnRefreshMyList" class="btn btn-ghost btn-sm">🔄 รีเฟรช</button>
+            </div>
           </div>
           <div class="card"><div class="tbl-wrap">
             <table>
-              <thead><tr><th>เลขที่</th><th>วันที่</th><th>โครงการ</th><th style="text-align:right;">เงิน</th><th>ผู้ขาย</th><th>สถานะ</th><th style="text-align:center;">จัดการ</th></tr></thead>
-              <tbody id="myReqBody"><tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px;">กำลังโหลด...</td></tr></tbody>
+              <thead><tr><th>เลขที่</th><th>ประเภท</th><th>วันที่</th><th>โครงการ</th><th style="text-align:right;">เงิน</th><th>ผู้ขาย</th><th>สถานะ</th><th style="text-align:center;">จัดการ</th></tr></thead>
+              <tbody id="myReqBody"><tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px;">กำลังโหลด...</td></tr></tbody>
             </table>
           </div></div>
         </div>
@@ -862,7 +963,7 @@ tbody tr:last-child td{border-bottom:none;}
               </div>
             </div>
             <div class="card card-body">
-              <div class="card-title" style="margin-bottom:14px;">ข้อมูลบัญชีธนาคารโรงเรียน</div>
+              <div class="card-title" style="margin-bottom:14px;">บัญชีธนาคารโรงเรียน (สำหรับพิมพ์ในเอกสาร)</div>
               <div class="form-grid">
                 <div class="field f6"><label>เลขที่บัญชีธนาคาร</label><input id="school_bank_account" class="input" type="text"></div>
                 <div class="field f6"><label>ชื่อบัญชี</label><input id="school_bank_account_name" class="input" type="text"></div>
@@ -1074,9 +1175,26 @@ function escHtml(s){ return String(s??'').replaceAll('&','&amp;').replaceAll('<'
       buildDonut('deptDonut', 'deptLegend', d);
       buildDonut('adminDeptDonut', 'adminDeptLegend', d);
     }
+    var m = window._cachedMonthly;
+    if (m && m.length && typeof renderMonthlyChart === 'function') {
+      renderMonthlyChart(m);
+    }
   });
   document.body.appendChild(sc);
 })();
 </script>
+<!-- Print Preview Modal -->
+<div id="printPreviewModal">
+  <div class="preview-toolbar">
+    <span class="preview-title">🖨️ ตัวอย่างเอกสาร</span>
+    <button onclick="printFromPreview()" class="btn btn-primary btn-sm">🖨️ พิมพ์จริง</button>
+    <button onclick="closePrintPreview()" class="btn btn-ghost btn-sm" style="color:#fff;border-color:#475569;">✕ ปิด</button>
+  </div>
+  <div class="preview-frame-wrap">
+    <iframe id="printPreviewFrame" title="ตัวอย่างเอกสาร"></iframe>
+  </div>
+</div>
+
+<canvas id="confettiCanvas" style="display:none;"></canvas>
 </body>
 </html>
