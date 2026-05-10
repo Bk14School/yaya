@@ -197,6 +197,11 @@ function buildPurchasePrintHtml(req, items, settings, school) {
   const bankAccName  = esc(settings.school_bank_account_name||'');
   const bankBankName = esc(settings.school_bank_name||'');
   const bankBranch   = esc(settings.school_bank_branch||'');
+  // บัญชีร้านค้า/ผู้รับจ้าง (จากฟอร์ม)
+  const vBankAccount  = esc(req.vendor_bank_account    ||'');
+  const vBankAccName  = esc(req.vendor_bank_name       ||'');
+  const vBankBankName = esc(req.vendor_bank_bank_name  ||'');
+  const vBankBranch   = esc(req.vendor_bank_branch     ||'');
   const officerName  = esc(settings.procurement_officer_name||'');
   const officerPos   = esc(settings.procurement_officer_position||'เจ้าหน้าที่พัสดุ');
   const headName     = esc(settings.procurement_head_name||'');
@@ -321,12 +326,12 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     ${memoFields(sn, reqDate, docNo)}
     ${memoRow('เรื่อง', isBuy ? 'รายงานขอซื้อ' : 'รายงานขอจ้าง')}
     <div style="margin-top:6px;">เรียน&nbsp;&nbsp; ผู้อำนวยการโรงเรียน${sn}</div>
-    <p style="text-indent:2.5em;margin-top:5px;line-height:1.7;">ด้วย โรงเรียน ${sn} มีความประสงค์${isBuy ? 'จะขอซื้อ' : 'ขอจ้าง'} ${FD(120,esc(req.project_name||''))} เพื่อ ${FD(100,esc(req.reason||''))} โดยเบิกจ่ายจากแผนงาน ${FD(80,esc(req.budget_source||''))} โครงการ ${FD(80,esc(req.project_name||''))} กิจกรรมหลัก ${FD(70,esc(req.activity_name||''))} เป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)})</p>
+    <p style="text-indent:2.5em;margin-top:5px;line-height:1.7;">ด้วย โรงเรียน ${sn} มีความประสงค์${isBuy ? 'จะขอซื้อ' : 'ขอจ้าง'} ${FD(120,esc(req.project_name||''))} เพื่อ ${FD(100,esc(req.objective||req.reason||''))} โดยเบิกจ่ายจากแผนงาน ${FD(80,esc(req.budget_source||''))} โครงการ ${FD(80,esc(req.project_name||''))} กิจกรรมหลัก ${FD(70,esc(req.activity_name||''))} เป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)})</p>
     <p style="text-indent:2.5em;margin-top:4px;line-height:1.7;">งานพัสดุได้ตรวจสอบแล้วเห็นควร${docTypeName}ตามเสนอ และเพื่อให้เป็นไปตามพระราชบัญญัติการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 มาตรา 56 วรรคหนึ่ง (2) (ข) และระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 22 ข้อ 79 ข้อ 25 (5) และกฎกระทรวงกำหนดวงเงินการจัดซื้อจัดจ้างพัสดุโดยวิธีเฉพาะเจาะจง วงเงินการจัดซื้อจัดจ้างที่ไม่ทำข้อตกลงเป็นหนังสือ และวงเงินการจัดซื้อจัดจ้างในการแต่งตั้งผู้ตรวจรับพัสดุ พ.ศ.2560 ข้อ 1 และข้อ 5</p>
     <div style="margin-top:4px;">จึงขอรายงาน${isBuy ? 'ขอซื้อ' : 'ขอจ้าง'} ดังนี้</div>
     <table style="width:100%;border-collapse:collapse;margin-top:2px;font-size:15px;line-height:1.7;">
       <tr><td style="width:24px;vertical-align:top;">1.</td><td>เหตุผลและความจำเป็นที่ต้อง${isBuy ? 'ซื้อ' : 'จ้าง'} ${FD(160,esc(req.reason||''))}</td></tr>
-      <tr><td style="vertical-align:top;">2.</td><td>รายละเอียดและ${isBuy ? 'งานที่จะซื้อ' : 'งานที่จะจ้าง'} ${FD(160,esc(req.project_name||''))}</td></tr>
+      <tr><td style="vertical-align:top;">2.</td><td>รายละเอียดและ${isBuy ? 'งานที่จะซื้อ' : 'งานที่จะจ้าง'} ${FD(160,esc(req.item_detail||req.project_name||''))}</td></tr>
       <tr><td style="vertical-align:top;">3.</td><td>ราคากลางของทางราชการเป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)})</td></tr>
       <tr><td style="vertical-align:top;">4.</td><td>วงเงินที่จะขอ${isBuy ? 'ซื้อ' : 'จ้าง'}ครั้งนี้ ${FD(0,total)} บาท (${FD(0,totalText)})</td></tr>
       <tr><td style="vertical-align:top;">5.</td><td>กำหนดเวลาทำงาน ${FD(40,deliveryDays)} วัน นับถัดจากวันลงนามในสัญญา</td></tr>
@@ -434,12 +439,12 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       <div>ที่อยู่ ${FL(100,schoolAddr)}</div>
       <div>เลขประจำตัวผู้เสียภาษี ${FL(100,esc(req.vendor_tax_id||''))}</div>
       <div>&nbsp;</div>
-      <div>เลขที่บัญชีเงินฝากธนาคาร ${FL(90,bankAccount)}</div>
+      <div>เลขที่บัญชีเงินฝากธนาคาร ${FL(90,vBankAccount)}</div>
       <div>เลขประจำตัวผู้เสียภาษี ${FL(90,schoolTax)}</div>
-      <div>ชื่อบัญชี ${FL(130,bankAccName)}</div>
+      <div>ชื่อบัญชี ${FL(130,vBankAccName)}</div>
       <div>โทรศัพท์ ${FL(100,schoolPhone)}</div>
-      <div>ธนาคาร ${FL(90,bankBankName)} สาขา ${FL(70,bankBranch)}</div>
-      <div>&nbsp;</div>
+      <div>ธนาคาร ${FL(90,vBankBankName)} สาขา ${FL(70,vBankBranch)}</div>
+      <div>เลขที่บัญชีธนาคารโรงเรียน ${FL(80,bankAccount)}</div>
     </div>
 
     <p style="margin-top:4mm;text-indent:48px;">ตามที่ ${isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง'} ${FD(80,esc(req.vendor_name||''))} ได้เสนอราคา ตามใบเสนอราคาเลขที่ ${FD(60,quoteNo)} ลงวันที่ ${FD(80,quoteDate)} ไว้ต่อโรงเรียน ${sn} ซึ่งได้รับราคาและตกลง${isBuy ? 'ซื้อ' : 'จ้าง'} ตามรายการดังต่อไปนี้</p>
