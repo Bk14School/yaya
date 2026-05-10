@@ -86,24 +86,156 @@ function statusBadge(s) {
   return `<span style="${style}padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;">${escHtml(s)}</span>`;
 }
 
-// ── Toast ─────────────────────────────────────────────────────
-function toast(msg, type='info') {
+// ── Toast (upgraded) ──────────────────────────────────────────
+const TOAST_ICONS = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
+function toast(msg, type='info', duration=3000) {
   const box = $('toastBox');
   if (!box) return;
   const div = document.createElement('div');
   div.className = `toast-item toast-${type}`;
-  div.textContent = msg;
+  div.style.setProperty('--toast-dur', duration + 'ms');
+  div.innerHTML = `<div class="toast-icon">${TOAST_ICONS[type]||'ℹ️'}</div><div class="toast-body"><div class="toast-msg">${escHtml(msg)}</div></div><div class="toast-progress"></div>`;
+  div.addEventListener('click', () => div.remove());
   box.appendChild(div);
-  setTimeout(()=>div.classList.add('show'), 10);
-  setTimeout(()=>{ div.classList.remove('show'); setTimeout(()=>div.remove(),250); }, 3000);
+  requestAnimationFrame(() => requestAnimationFrame(() => div.classList.add('show')));
+  setTimeout(() => { div.classList.remove('show'); setTimeout(() => div.remove(), 350); }, duration);
 }
 
-// ── Loading ───────────────────────────────────────────────────
+// ── Count-up animation ────────────────────────────────────────
+function countUp(el, target, duration=800, isMoney=false) {
+  if (!el) return;
+  const start = 0, startTime = performance.now();
+  function step(now) {
+    const p = Math.min((now - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3); // ease-out cubic
+    const val = start + (target - start) * ease;
+    el.textContent = isMoney
+      ? val.toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2})
+      : Math.round(val).toLocaleString('th-TH');
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ── Skeleton loading ──────────────────────────────────────────
+function skeletonRows(cols, rows=3) {
+  return Array.from({length:rows}, () =>
+    `<tr>${Array.from({length:cols}, () => `<td><div class="skeleton" style="height:14px;border-radius:4px;"></div></td>`).join('')}</tr>`
+  ).join('');
+}
+function skeletonCard(lines=3) {
+  return lines > 0
+    ? Array.from({length:lines}, (_, i) =>
+        `<div class="skeleton" style="height:${i===0?'18px':'13px'};width:${i===0?'60%':Math.random()*40+50+'%'};margin-bottom:8px;"></div>`
+      ).join('')
+    : '';
+}
+
+// ── Confetti 🎉 ───────────────────────────────────────────────
+function fireConfetti(duration=2200) {
+  const canvas = $('confettiCanvas');
+  if (!canvas) return;
+  canvas.style.display = 'block';
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  const colors = ['#1d4ed8','#16a34a','#f59e0b','#ec4899','#8b5cf6','#ef4444','#06b6d4'];
+  const pieces = Array.from({length:120}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -canvas.height,
+    r: Math.random() * 6 + 3,
+    d: Math.random() * 120 + 60,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    tilt: Math.random() * 10 - 5,
+    tiltSpeed: Math.random() * 0.1 + 0.05,
+    speed: Math.random() * 3 + 2,
+    opacity: 1,
+    shape: Math.random() > 0.5 ? 'rect' : 'circle'
+  }));
+  const end = Date.now() + duration;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const now = Date.now();
+    const remaining = end - now;
+    pieces.forEach(p => {
+      p.y     += p.speed;
+      p.tilt  += p.tiltSpeed;
+      p.opacity = remaining < 500 ? remaining / 500 : 1;
+      ctx.globalAlpha = p.opacity;
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.tilt);
+        ctx.fillRect(-p.r, -p.r/2, p.r*2, p.r);
+        ctx.restore();
+      } else {
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+      }
+      if (p.y > canvas.height) {
+        p.y = -10; p.x = Math.random() * canvas.width;
+      }
+    });
+    ctx.globalAlpha = 1;
+    if (Date.now() < end) requestAnimationFrame(draw);
+    else { ctx.clearRect(0,0,canvas.width,canvas.height); canvas.style.display='none'; }
+  }
+  requestAnimationFrame(draw);
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────
+function initKeyboardShortcuts() {
+  document.addEventListener('keydown', e => {
+    // Ctrl+S = บันทึก
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      const view = document.querySelector('.view.active')?.id;
+      if (view === 'viewTeacher') { saveRequestForm(); toast('⌨️ Ctrl+S บันทึกแล้ว','info',1500); }
+    }
+    // Ctrl+Enter = ส่งตรวจรับ
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      const view = document.querySelector('.view.active')?.id;
+      if (view === 'viewTeacher') submitRequest(val('reqId'));
+    }
+    // Ctrl+P = พิมพ์
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      const view = document.querySelector('.view.active')?.id;
+      if (view === 'viewTeacher' && val('reqId')) {
+        e.preventDefault();
+        printRequest();
+      }
+    }
+    // Escape = ปิด modal
+    if (e.key === 'Escape') {
+      closeUserModal?.();
+      closePrintPreview?.();
+    }
+  });
+}
+let _loadingCount = 0;
 function setLoading(on, msg='กำลังโหลด...') {
   const el = $('globalLoading');
   if (!el) return;
-  if (on) { el.innerHTML = `<div class="loading-card">${escHtml(msg)}</div>`; show(el); }
-  else hide(el);
+  if (on) {
+    _loadingCount++;
+    el.innerHTML = `<div class="loading-card"><div class="loading-spinner"></div><div class="loading-msg">${escHtml(msg)}</div></div>`;
+    el.style.display = 'flex';
+  } else {
+    _loadingCount = Math.max(0, _loadingCount - 1);
+    if (_loadingCount === 0) {
+      el.style.display = 'none';
+      el.innerHTML = '';
+    }
+  }
+}
+
+// wrapper สำหรับ auto loading ทุก API call
+async function apiCall(action, payload={}, method='GET', msg='') {
+  setLoading(true, msg || 'กำลังดำเนินการ...');
+  try {
+    return await api(action, payload, method);
+  } finally {
+    setLoading(false);
+  }
 }
 
 // ── Local storage ─────────────────────────────────────────────
@@ -254,11 +386,16 @@ async function afterLogin() {
   if (!u) return;
   if (u.role === 'inspector') {
     showView('Inspector');
-    await loadInspectorList();
+    await loadInspectorList(); // badge updated inside
   } else if (u.role === 'admin') {
     showView('Admin');
     bindSettingsForm();
     await loadAdminList();
+    // admin ก็ควรเห็น badge รอตรวจรับ
+    try {
+      const res = await api('listRequests',{ role:'inspector' });
+      if (res.ok) updateInspectorBadge(res.requests||[]);
+    } catch(e){}
   } else {
     showView('Teacher');
     prepareTeacherForm();
@@ -279,25 +416,124 @@ function bindSchoolToUI() {
 
 // ── Public dashboard ──────────────────────────────────────────
 async function loadPublicDashboard() {
+  setLoading(true, 'กำลังโหลดข้อมูล...');
   try {
     const res = await api('getDashboard');
     if (!res.ok) return;
     renderSummaryCards(res.summary||{}, res.status_count||{});
     renderDeptTable(res.departments||[]);
     renderRecentTable(res.recent_requests||[]);
+    renderProcTypeStat(res.proc_type_stat||{});
+    renderTopVendors(res.top_vendors||[]);
+    renderPendingAlerts(res.pending_alerts||[]);
+    renderMonthlyChart(res.monthly||[]);
   } catch(e){ console.error(e); }
+  finally { setLoading(false); }
+}
+
+function renderProcTypeStat(stat) {
+  const buy  = stat.buy  || { count:0, total:0 };
+  const hire = stat.hire || { count:0, total:0 };
+  setEl('buyCount',  String(buy.count));
+  setEl('hireCount', String(hire.count));
+  setEl('buyTotal',  fmtMoney(buy.total)  + ' บาท');
+  setEl('hireTotal', fmtMoney(hire.total) + ' บาท');
+}
+
+function renderTopVendors(vendors) {
+  const el = $('topVendorList');
+  if (!el) return;
+  if (!vendors.length) {
+    el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:16px;font-size:13px;">ยังไม่มีข้อมูล</div>';
+    return;
+  }
+  const max = vendors[0].total || 1;
+  el.innerHTML = vendors.map((v, i) => {
+    const pct = Math.round(v.total / max * 100);
+    const colors = ['#1d4ed8','#16a34a','#d97706','#7c3aed','#db2777'];
+    const c = colors[i % colors.length];
+    return `<div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:13px;font-weight:600;color:#1e293b;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(v.name)}</div>
+        <div style="font-size:12px;color:#64748b;">${fmtMoney(v.total)} บาท</div>
+      </div>
+      <div style="background:#f1f5f9;border-radius:999px;height:6px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${c};border-radius:999px;transition:width .6s ease;"></div>
+      </div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${v.count} รายการ</div>
+    </div>`;
+  }).join('');
+}
+
+function renderPendingAlerts(pending) {
+  const el     = $('pendingAlertList');
+  const badge  = $('pendingBadge');
+  if (!el) return;
+  if (badge) {
+    if (pending.length > 0) { badge.textContent = pending.length; badge.style.display = ''; }
+    else badge.style.display = 'none';
+  }
+  if (!pending.length) {
+    el.innerHTML = '<div style="text-align:center;color:#16a34a;padding:16px;font-size:13px;">✅ ไม่มีรายการค้าง</div>';
+    return;
+  }
+  el.innerHTML = pending.map(p => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;">
+      <div style="background:#fef2f2;color:#dc2626;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;">${p.days_pending} วัน</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(p.project_name||'-')}</div>
+        <div style="font-size:11px;color:#64748b;">${escHtml(p.teacher_name||'-')} · ${fmtMoney(p.total_amount)} บาท</div>
+      </div>
+    </div>`).join('');
+}
+
+let _monthlyChartInst = null;
+function renderMonthlyChart(monthly) {
+  const canvas = $('monthlyChart');
+  if (!canvas || typeof Chart === 'undefined') {
+    // เก็บ cache ไว้ให้ Chart.js callback ดึงไปใช้
+    window._cachedMonthly = monthly;
+    return;
+  }
+  if (_monthlyChartInst) { _monthlyChartInst.destroy(); _monthlyChartInst = null; }
+
+  const thMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const labels = monthly.map(m => {
+    const parts = m.month.split('-');
+    return thMonths[Number(parts[1])-1] || m.month;
+  });
+
+  _monthlyChartInst = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'จัดซื้อ', data: monthly.map(m=>m.buy),  backgroundColor: '#3b82f6', borderRadius: 4 },
+        { label: 'จัดจ้าง', data: monthly.map(m=>m.hire), backgroundColor: '#f59e0b', borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'top', labels:{ font:{ family:'Sarabun', size:12 } } } },
+      scales: {
+        x: { stacked: true, grid:{ display:false }, ticks:{ font:{ family:'Sarabun', size:11 } } },
+        y: { stacked: true, grid:{ color:'#f1f5f9' }, ticks:{ font:{ family:'Sarabun', size:11 },
+          callback: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v } }
+      }
+    }
+  });
 }
 
 function renderSummaryCards(s, sc) {
   sc = sc || s.status_count || {};
-  setEl('sumTotal',  fmtMoney(s.total_budget));
-  setEl('sumUsed',   fmtMoney(s.used_budget));
-  setEl('sumRemain', fmtMoney(s.remain_budget));
-  setEl('sumCount',  fmtInt(s.request_count));
-  setEl('sumDraft',    fmtInt(sc['ร่าง']||0));
-  setEl('sumPending',  fmtInt(sc['รออนุมัติ']||0));
-  setEl('sumReceived', fmtInt(sc['ตรวจรับแล้ว']||0));
-  setEl('sumPaid',     fmtInt(sc['เบิกจ่ายแล้ว']||0));
+  countUp($('sumTotal'),  Number(s.total_budget ||0), 900, true);
+  countUp($('sumUsed'),   Number(s.used_budget  ||0), 900, true);
+  countUp($('sumRemain'), Number(s.remain_budget||0), 900, true);
+  countUp($('sumCount'),  Number(s.request_count||0), 700, false);
+  countUp($('sumDraft'),    Number(sc['ร่าง']        ||0), 600);
+  countUp($('sumPending'),  Number(sc['รออนุมัติ']   ||0), 600);
+  countUp($('sumReceived'), Number(sc['ตรวจรับแล้ว'] ||0), 600);
+  countUp($('sumPaid'),     Number(sc['เบิกจ่ายแล้ว']||0), 600);
 
   // ── progress bars (layout ใหม่) ──
   const total  = Number(s.total_budget||1);
@@ -432,6 +668,8 @@ function prepareTeacherForm() {
   setVal('reqStatus','ร่าง');
   setVal('reqId','');
   setVal('reqPoNo','');
+  setVal('reqObjective','');
+  setVal('reqItemDetail','');
   if ($('reqProcType')) {
     $('reqProcType').value = 'จัดซื้อ';
     $('reqProcType').addEventListener('change', () => {
@@ -456,27 +694,51 @@ function prepareTeacherForm() {
 }
 
 async function loadMyRequests() {
+  const el = $('myReqBody');
+  if (el) el.innerHTML = skeletonRows(8, 4);
+  setLoading(true, 'กำลังโหลดรายการ...');
   try {
     const res = await api('listRequests',{ user_id: App.user.user_id, role: App.user.role });
     if (!res.ok) throw new Error(res.message);
     App.requests = res.requests||[];
     renderMyRequests(App.requests);
   } catch(e){ console.error(e); }
+  finally { setLoading(false); }
 }
 
 function renderMyRequests(rows) {
   const el = $('myReqBody');
   if (!el) return;
-  if (!rows.length) { el.innerHTML='<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px;">ยังไม่มีรายการคำขอซื้อ</td></tr>'; return; }
-  el.innerHTML = rows.map(r=>`
+
+  // apply search + filter
+  const q  = ($('myReqSearch')?.value||'').toLowerCase();
+  const s  = $('myReqStatusFilter')?.value||'';
+  const t  = $('myReqTypeFilter')?.value||'';
+  const filtered = rows.filter(r => {
+    const matchQ = !q || (r.project_name||'').toLowerCase().includes(q) || (r.vendor_name||'').toLowerCase().includes(q) || (r.request_id||'').toLowerCase().includes(q);
+    const matchS = !s || r.status === s;
+    const matchT = !t || r.proc_type === t;
+    return matchQ && matchS && matchT;
+  });
+
+  if (!filtered.length) {
+    el.innerHTML=`<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px;">${q||s||t ? 'ไม่พบรายการที่ค้นหา' : 'ยังไม่มีรายการคำขอซื้อ'}</td></tr>`;
+    return;
+  }
+  const typeChip = t => t === 'จัดจ้าง'
+    ? '<span style="font-size:11px;background:#fef9c3;color:#854d0e;padding:2px 7px;border-radius:999px;font-weight:700;">🔧 จ้าง</span>'
+    : '<span style="font-size:11px;background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:999px;font-weight:700;">🛒 ซื้อ</span>';
+
+  el.innerHTML = filtered.map(r=>`
     <tr>
       <td style="font-size:13px;font-weight:600;color:#2563eb;">${escHtml(r.request_id||'')}</td>
+      <td>${typeChip(r.proc_type||'จัดซื้อ')}</td>
       <td style="font-size:13px;color:#64748b;">${escHtml((r.request_date||r.created_at||'').split(' ')[0])}</td>
       <td>${escHtml(r.project_name||'')}</td>
       <td style="text-align:right;">${fmtMoney(r.total_amount)}</td>
       <td>${escHtml(r.vendor_name||'-')}</td>
       <td>${statusBadge(r.status)}</td>
-      <td style="text-align:center;">
+      <td style="text-align:center;white-space:nowrap;">
         <button class="btn-action" onclick="openRequest('${escHtml(r.request_id||'')}')">เปิด</button>
         ${r.status==='ร่าง'?`<button class="btn-action btn-send" onclick="submitRequest('${escHtml(r.request_id||'')}')">ส่ง</button>`:''}
       </td>
@@ -502,10 +764,14 @@ async function openRequest(id) {
 
 function bindReqToForm(req, items) {
   const fields = ['request_id','request_date','teacher_name','department','project_name','reason',
-    'budget_source','activity_name','vendor_name','vendor_address','vendor_tax_id','vendor_phone',
+    'objective','item_detail','budget_source','activity_name',
+    'vendor_name','vendor_address','vendor_tax_id','vendor_phone',
+    'vendor_bank_account','vendor_bank_name','vendor_bank_bank_name','vendor_bank_branch',
     'delivery_days','status','doc_no','quote_no','quote_date','po_no'];
   const ids    = ['reqId','reqDate','reqTeacher','reqDept','reqProject','reqReason',
-    'reqBudgetSource','reqActivity','reqVendor','reqVendorAddr','reqVendorTax','reqVendorPhone',
+    'reqObjective','reqItemDetail','reqBudgetSource','reqActivity',
+    'reqVendor','reqVendorAddr','reqVendorTax','reqVendorPhone',
+    'reqVendorBankAccount','reqVendorBankName','reqVendorBankBankName','reqVendorBankBranch',
     'reqDelivery','reqStatus','reqDocNo','reqQuoteNo','reqQuoteDate','reqPoNo'];
   fields.forEach((f,i) => setVal(ids[i], req[f]||''));
   if ($('reqProcType')) $('reqProcType').value = req.proc_type || 'จัดซื้อ';
@@ -526,6 +792,8 @@ async function saveRequestForm() {
     proc_type:     $('reqProcType')?.value || 'จัดซื้อ',
     po_no:         val('reqPoNo'),
     scope_of_work: $('reqScopeOfWork')?.value || '',
+    objective:     val('reqObjective'),
+    item_detail:   val('reqItemDetail'),
     request_id:    val('reqId'),
     request_date:  val('reqDate'),
     teacher_id:    App.user.user_id,
@@ -539,6 +807,10 @@ async function saveRequestForm() {
     vendor_address:val('reqVendorAddr'),
     vendor_tax_id: val('reqVendorTax'),
     vendor_phone:  val('reqVendorPhone'),
+    vendor_bank_account:   val('reqVendorBankAccount'),
+    vendor_bank_name:      val('reqVendorBankName'),
+    vendor_bank_bank_name: val('reqVendorBankBankName'),
+    vendor_bank_branch:    val('reqVendorBankBranch'),
     delivery_days: val('reqDelivery'),
     doc_no:        val('reqDocNo'),
     quote_no:      val('reqQuoteNo'),
@@ -564,6 +836,7 @@ async function saveRequestForm() {
     App.currentReq = {...req, request_id: res.request_id};
     App.currentItems = items;
     toast('บันทึกเรียบร้อยแล้ว','success');
+    fireConfetti();
     await loadMyRequests();
   } catch(e){ toast(e.message,'error'); }
   finally { setLoading(false); }
@@ -593,22 +866,40 @@ async function submitRequest(id) {
   finally { setLoading(false); }
 }
 
+// ── Print Preview ─────────────────────────────────────────────
+let _previewHtml = '';
+
 async function printRequest() {
   const id = val('reqId') || App.currentId;
   if (!id) { toast('กรุณาบันทึกก่อนพิมพ์','error'); return; }
-  // เปิด popup ก่อน fetch เพื่อป้องกัน popup blocker
-  const w = window.open('','_blank');
-  if (!w) { toast('กรุณาอนุญาต popup ในเบราว์เซอร์','error'); return; }
-  w.document.write('<html><body style="font-family:sans-serif;padding:20px;">กำลังเตรียมเอกสาร...</body></html>');
-  setLoading(true,'กำลังเตรียมเอกสาร...');
+  setLoading(true,'กำลังเตรียมตัวอย่าง...');
   try {
     const res = await api('getRequest',{request_id:id});
     if (!res.ok) throw new Error(res.message);
-    const html = buildPurchasePrintHtml(res.request, res.items, App.systemSettings, App.schoolProfile);
-    w.document.open(); w.document.write(html); w.document.close();
-    setTimeout(()=>{ w.focus(); w.print(); },600);
-  } catch(e){ w.close(); toast(e.message,'error'); }
+    _previewHtml = buildPurchasePrintHtml(res.request, res.items, App.systemSettings, App.schoolProfile);
+    openPrintPreview(_previewHtml);
+  } catch(e){ toast(e.message,'error'); }
   finally { setLoading(false); }
+}
+
+function openPrintPreview(html) {
+  const modal = $('printPreviewModal');
+  const frame = $('printPreviewFrame');
+  if (!modal || !frame) return;
+  modal.classList.add('open');
+  // เขียน HTML ลงใน iframe
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+}
+
+function closePrintPreview() {
+  const modal = $('printPreviewModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function printFromPreview() {
+  const frame = $('printPreviewFrame');
+  if (frame) { frame.contentWindow.focus(); frame.contentWindow.print(); }
 }
 
 // ── Items table ───────────────────────────────────────────────
@@ -621,7 +912,9 @@ function addItemRow(item={}) {
   const b = $('itemsBody');
   if (!b) return;
   const tr = document.createElement('tr');
+  tr.draggable = true;
   tr.innerHTML = `
+    <td><span class="drag-handle" title="ลากเพื่อเรียงลำดับ">⠿</span></td>
     <td><input type="text" class="tbl-input item_name" value="${escHtml(item.item_name||'')}" placeholder="ชื่อรายการ"></td>
     <td><input type="number" class="tbl-input qty" value="${escHtml(item.qty||'')}" min="0" step="1" style="text-align:right;"></td>
     <td><input type="text" class="tbl-input unit" value="${escHtml(item.unit||'')}" placeholder="หน่วย"></td>
@@ -635,9 +928,32 @@ function addItemRow(item={}) {
       </select>
     </td>
     <td style="text-align:center;"><button type="button" class="btn-del" onclick="if(confirm('ลบรายการนี้?'))this.closest('tr').remove(),calcTotal();">✕</button></td>`;
+
   const q=tr.querySelector('.qty'), p=tr.querySelector('.unit_price'), a=tr.querySelector('.amount');
   const calc=()=>{ a.value=(Number(q.value||0)*Number(p.value||0)).toFixed(2); calcTotal(); };
   q.addEventListener('input',calc); p.addEventListener('input',calc);
+
+  // Drag-and-drop
+  tr.addEventListener('dragstart', e => {
+    e.dataTransfer.effectAllowed = 'move';
+    tr.classList.add('dragging');
+    setTimeout(() => tr.classList.add('dragging'), 0);
+  });
+  tr.addEventListener('dragend', () => tr.classList.remove('dragging'));
+  tr.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const dragging = b.querySelector('.dragging');
+    if (!dragging || dragging === tr) return;
+    const rect = tr.getBoundingClientRect();
+    const mid  = rect.top + rect.height / 2;
+    b.classList.add('drag-over');
+    if (e.clientY < mid) b.insertBefore(dragging, tr);
+    else b.insertBefore(dragging, tr.nextSibling);
+  });
+  tr.addEventListener('dragleave', () => b.classList.remove('drag-over'));
+  tr.addEventListener('drop', e => { e.preventDefault(); b.classList.remove('drag-over'); calcTotal(); });
+
   b.appendChild(tr);
 }
 
@@ -670,13 +986,31 @@ function resetForm() {
 }
 
 // ── Inspector view ────────────────────────────────────────────
+// ── Inspector badge ───────────────────────────────────────────
+function updateInspectorBadge(rows) {
+  const badge = $('navInspBadge');
+  if (!badge) return;
+  const pending = (rows||[]).filter(r => r.status === 'รออนุมัติ').length;
+  if (pending > 0) {
+    badge.textContent = pending > 99 ? '99+' : String(pending);
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
 async function loadInspectorList() {
+  const el = $('inspectorListBody');
+  if (el) el.innerHTML = skeletonRows(7, 3);
+  setLoading(true, 'กำลังโหลดรายการ...');
   try {
     const res = await api('listRequests',{ role:'inspector' });
     if (!res.ok) throw new Error(res.message);
     App._inspRows = res.requests||[];
     renderInspectorList(App._inspRows);
+    updateInspectorBadge(App._inspRows);
   } catch(e){ toast(e.message,'error'); }
+  finally { setLoading(false); }
 }
 
 function renderInspectorList(rows) {
@@ -921,17 +1255,13 @@ async function saveInspect() {
 }
 
 async function printById(id) {
-  const w = window.open('','_blank');
-  if (!w) { toast('กรุณาอนุญาต popup ในเบราว์เซอร์','error'); return; }
-  w.document.write('<html><body style="font-family:sans-serif;padding:20px;">กำลังเตรียมเอกสาร...</body></html>');
-  setLoading(true,'กำลังเตรียมเอกสาร...');
+  setLoading(true,'กำลังเตรียมตัวอย่าง...');
   try {
     const res = await api('getRequest',{request_id:id});
     if (!res.ok) throw new Error(res.message);
     const html = buildPurchasePrintHtml(res.request, res.items, App.systemSettings, App.schoolProfile);
-    w.document.open(); w.document.write(html); w.document.close();
-    setTimeout(()=>{ w.focus(); w.print(); },600);
-  } catch(e){ w.close(); toast(e.message,'error'); }
+    openPrintPreview(html);
+  } catch(e){ toast(e.message,'error'); }
   finally { setLoading(false); }
 }
 
@@ -958,6 +1288,7 @@ function renderAdminDashboard(summary, statusCount, departments) {
 
 // ── Admin view ────────────────────────────────────────────────
 async function loadAdminList() {
+  setLoading(true, 'กำลังโหลดข้อมูล...');
   try {
     const res = await api('listRequests',{ role:'admin' });
     if (!res.ok) throw new Error(res.message);
@@ -966,6 +1297,7 @@ async function loadAdminList() {
     const db = await api('getDashboard');
     if (db.ok) { renderAdminDashboard(db.summary||{}, db.status_count||{}, db.departments||[]); }
   } catch(e){ console.error(e); }
+  finally { setLoading(false); }
 }
 
 function renderAdminList(rows) {
@@ -1027,13 +1359,14 @@ let _allUsers = [];
 async function loadUserList() {
   const el = $('userListBody');
   if (!el) return;
-  el.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:24px;">กำลังโหลด...</td></tr>';
+  setLoading(true, 'กำลังโหลดรายชื่อผู้ใช้...');
   try {
     const res = await api('listUsers');
     if (!res.ok) throw new Error(res.message);
     _allUsers = res.users || [];
     renderUserList(_allUsers);
   } catch(e) { toast(e.message, 'error'); }
+  finally { setLoading(false); }
 }
 
 function renderUserList(users) {
@@ -1136,6 +1469,9 @@ function bindEvents() {
   $('btnPrintReq')?.addEventListener('click', printRequest);
   $('btnResetReq')?.addEventListener('click', resetForm);
   $('btnRefreshMyList')?.addEventListener('click', loadMyRequests);
+  $('myReqSearch')?.addEventListener('input', ()=>renderMyRequests(App.requests||[]));
+  $('myReqStatusFilter')?.addEventListener('change', ()=>renderMyRequests(App.requests||[]));
+  $('myReqTypeFilter')?.addEventListener('change', ()=>renderMyRequests(App.requests||[]));
 
   // Inspector
   $('btnSaveInspect')?.addEventListener('click', saveInspect);
@@ -1155,4 +1491,7 @@ function bindEvents() {
   $('btnRefreshAdmin')?.addEventListener('click', loadAdminList);
 }
 
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', () => {
+  initApp();
+  initKeyboardShortcuts();
+});
