@@ -1494,4 +1494,4 @@ function bindEvents() {
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
   initKeyboardShortcuts();
-});
+}); 
