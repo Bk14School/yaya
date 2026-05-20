@@ -184,11 +184,11 @@ function buildPurchasePrintHtml(req, items, settings, school) {
   const poTypeName   = isBuy ? 'ใบสั่งซื้อ'    : 'ใบสั่งจ้าง';
   const recvTypeName = isBuy ? 'ใบตรวจรับพัสดุ' : 'ใบตรวจรับงานจ้าง';
   const vendorLabel  = isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง';
-  const inspName     = esc(req.inspector_name||'');
-  const inspPos      = esc(req.inspector_position||'');
+  const inspName     = esc(req.inspector_name || settings.default_inspector_name || '');
+  const inspPos      = esc(req.inspector_position || settings.default_inspector_position || '');
   const receiveDate  = thaiDateLong(req.receive_date||'');
   const invoiceNo    = esc(req.invoice_no||'');
-  const invoiceDate  = thaiDateLong(req.invoice_date||'');
+  const invoiceDate  = thaiDateLong(req.invoice_date || req.request_date || '');
   const lateDays     = esc(req.late_days||'0');
   const penalty      = num(req.penalty||0);
   const whtax        = num(req.withholding_tax||0);
@@ -213,10 +213,21 @@ function buildPurchasePrintHtml(req, items, settings, school) {
   const allItems     = (items && items.length) ? items : [{}];
   const itemCount    = allItems.filter(i => i.item_name).length || allItems.length;
 
-  // ชื่อ/นามสกุล ผู้ตรวจรับ
-  const inspParts     = inspName ? inspName.split(' ') : [];
-  const inspFirst     = inspParts[0] || '';
-  const inspLast      = inspParts.slice(1).join(' ') || '';
+  // ชื่อ/นามสกุล ผู้ตรวจรับ — แยก prefix (คำนำหน้า) ออกก่อน
+  const PREFIXES = ['นาย','นาง','นางสาว','ด.ช.','ด.ญ.','เด็กชาย','เด็กหญิง','Mr.','Mrs.','Miss.'];
+  function splitInspName(fullName) {
+    if (!fullName) return { prefix: '', first: '', last: '' };
+    let name = fullName.trim();
+    let prefix = '';
+    for (const p of PREFIXES) {
+      if (name.startsWith(p)) { prefix = p; name = name.slice(p.length).trim(); break; }
+    }
+    const parts = name.split(/\s+/);
+    return { prefix, first: parts[0] || '', last: parts.slice(1).join(' ') || '' };
+  }
+  const inspSplit = splitInspName(inspName);
+  const inspFirst = inspSplit.prefix ? inspSplit.prefix + inspSplit.first : inspSplit.first;
+  const inspLast  = inspSplit.last;
 
   const CSS = `<style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
@@ -229,7 +240,11 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     table.dt th,table.dt td{border:1px solid #000;padding:5px 6px;vertical-align:middle;}
     table.dt th{text-align:center;font-weight:700;}
     p{margin:3px 0;line-height:1.65;}
-    @media print{body{background:#fff;}.page{box-shadow:none;}}
+    @media print{
+      body{background:#fff;}
+      .page{box-shadow:none;}
+      .page[style*="width:297mm"]{size:A4 landscape;}
+    }
     @media screen{body{background:#e5e7eb;}.page{box-shadow:0 0 0 1px rgba(0,0,0,.08),0 8px 30px rgba(0,0,0,.12);margin:8mm auto;}}
   </style>`;
 
@@ -313,8 +328,18 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     <div style="margin-top:3mm;font-weight:700;">5. วงเงินที่ประมาณที่จะจ้าง</div>
     <div style="margin-left:16px;">เป็นเงิน ${FL(140,total)} บาท (${FL(140,totalText)})</div>
     `}
-    ${signBlock('ลงชื่อ', req.teacher_name||'', 'ผู้กำหนดรายละเอียดพัสดุ')}
-    ${signBlock('ลงชื่อ', dirName, `ผู้อำนวยการโรงเรียน${sn}`)}
+    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;text-align:center;">
+      <div>ลงชื่อ ${FL(200,'')}</div>
+      <div>(${esc(req.teacher_name||'')})</div>
+      <div>ผู้กำหนดรายละเอียดพัสดุ</div>
+      <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+    </div>
+    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;text-align:center;">
+      <div>ลงชื่อ ${FL(200,'')}</div>
+      <div>(${esc(dirName||'')})</div>
+      <div>ผู้อำนวยการโรงเรียน${sn}</div>
+      <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+    </div>
   </div>`;
 
   // ══════════════════════════════════════════════
@@ -346,7 +371,20 @@ function buildPurchasePrintHtml(req, items, settings, school) {
         <span style="padding-left:1.5em;">2.1. ชื่อ${FD(60,inspFirst)} นามสกุล ${FD(80,inspLast)} ตำแหน่ง${FD(100,inspPos)} ผู้ตรวจรับพัสดุ</span>
       </td></tr>
     </table>
-    ${sign2col(officerName, 'เจ้าหน้าที่', headName, 'หัวหน้าเจ้าหน้าที่')}
+    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="text-align:center;">
+        <div>ลงชื่อ ${FL(180,'')}</div>
+        <div>(${esc(officerName||'')})</div>
+        ${officerPos ? `<div>${officerPos}</div>` : ''}
+        <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+      </div>
+      <div style="text-align:center;">
+        <div>ลงชื่อ ${FL(180,'')}</div>
+        <div>(${esc(headName||'')})</div>
+        ${headPos ? `<div>${headPos}</div>` : ''}
+        <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+      </div>
+    </div>
     <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;text-align:center;">
       <div>- อนุมัติ -</div>
       <div>- เห็นชอบ -</div>
@@ -354,7 +392,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
         <div>ลงชื่อ ${FL(220,'')}</div>
         <div>(${dirName})</div>
         <div>ผู้อำนวยการโรงเรียน${sn}</div>
-        <div style="font-size:13px;margin-top:3px;">............../............../..............</div>
+        <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
       </div>
     </div>
   </div>`;
@@ -388,8 +426,18 @@ function buildPurchasePrintHtml(req, items, settings, school) {
         </tr>
       </tbody>
     </table>
-    ${signBlock('(ลงชื่อ)', officerName, officerPos)}
-    ${signBlock('(ลงชื่อ)', headName, headPos)}
+    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;text-align:center;">
+      <div>(ลงชื่อ) ${FL(200,'')}</div>
+      <div>(${esc(officerName||'')})</div>
+      ${officerPos ? `<div>${officerPos}</div>` : ''}
+      <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+    </div>
+    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;text-align:center;">
+      <div>(ลงชื่อ) ${FL(200,'')}</div>
+      <div>(${esc(headName||'')})</div>
+      ${headPos ? `<div>${headPos}</div>` : ''}
+      <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+    </div>
   </div>`;
 
   // ══════════════════════════════════════════════
@@ -407,7 +455,20 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     <table style="width:100%;border-collapse:collapse;margin-top:2px;font-size:15px;line-height:1.7;">
       <tr><td style="width:24px;vertical-align:top;">1.</td><td>อนุมัติให้สั่ง${isBuy ? 'ซื้อ' : 'จ้าง'} ${FD(80,esc(req.project_name||''))} จาก ${isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง'} ${FD(80,esc(req.vendor_name||''))} เป็น${isBuy ? 'ผู้ขาย' : 'ผู้รับจ้าง'} ในวงเงิน ${FD(0,total)} บาท (${FD(0,totalText)}) กำหนดเวลาการส่งมอบภายใน ${FD(0,deliveryDays)} วัน นับถัดจากวันลงนามในสัญญา</td></tr>
     </table>
-    ${sign2col(officerName, officerPos, headName, headPos)}
+    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="text-align:center;">
+        <div>ลงชื่อ ${FL(180,'')}</div>
+        <div>(${esc(officerName||'')})</div>
+        ${officerPos ? `<div>${officerPos}</div>` : ''}
+        <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+      </div>
+      <div style="text-align:center;">
+        <div>ลงชื่อ ${FL(180,'')}</div>
+        <div>(${esc(headName||'')})</div>
+        ${headPos ? `<div>${headPos}</div>` : ''}
+        <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
+      </div>
+    </div>
     <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;text-align:center;">
       <div>- เห็นชอบ -</div>
       <div>- อนุมัติ -</div>
@@ -415,7 +476,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
         <div>ลงชื่อ ${FL(220,'')}</div>
         <div>(${dirName})</div>
         <div>ตำแหน่ง${dirPos}</div>
-        <div style="font-size:13px;margin-top:3px;">............../............../..............</div>
+        <div style="font-size:13px;margin-top:3px;">${reqDate}</div>
       </div>
     </div>
   </div>`;
@@ -447,7 +508,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       <div>เลขที่บัญชีธนาคารโรงเรียน ${FL(80,bankAccount)}</div>
     </div>
 
-    <p style="margin-top:4mm;text-indent:48px;">ตามที่ ${isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง'} ${FD(80,esc(req.vendor_name||''))} ได้เสนอราคา ตามใบเสนอราคาเลขที่ ${FD(60,quoteNo)} ลงวันที่ ${FD(80,quoteDate)} ไว้ต่อโรงเรียน ${sn} ซึ่งได้รับราคาและตกลง${isBuy ? 'ซื้อ' : 'จ้าง'} ตามรายการดังต่อไปนี้</p>
+    <p style="margin-top:4mm;text-indent:48px;">ตามที่ ${isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง'} ${FD(80,esc(req.vendor_name||''))} ได้เสนอราคา ตามใบเสนอราคาเลขที่ ${FD(60,quoteNo)} ลงวันที่ ${FD(80,invoiceDate)} ไว้ต่อโรงเรียน ${sn} ซึ่งได้รับราคาและตกลง${isBuy ? 'ซื้อ' : 'จ้าง'} ตามรายการดังต่อไปนี้</p>
 
     <table class="dt" style="margin-top:3px;">
       <thead>
@@ -497,12 +558,12 @@ function buildPurchasePrintHtml(req, items, settings, school) {
         <div>ลงชื่อ ${FL(200,'')} ${isBuy ? 'ผู้สั่งซื้อ' : 'ผู้สั่งจ้าง'}</div>
         <div>(${dirName})</div>
         <div>ตำแหน่ง ${dirPos}${sn}</div>
-        <div style="font-size:13px;margin-top:3px;">วันที่ ............../............../..............</div>
+        <div style="font-size:13px;margin-top:3px;">วันที่ ${reqDate}</div>
       </div>
       <div style="text-align:center;">
         <div>ลงชื่อ ${FL(200,'')} ${isBuy ? 'ผู้รับใบสั่งซื้อ' : 'ผู้รับจ้าง'}</div>
-        <div>(${esc(req.vendor_name||'')})</div>
-        <div style="font-size:13px;margin-top:3px;">วันที่ ............../............../..............</div>
+        ${req.vendor_name ? `<div>(${esc(req.vendor_name)})</div>` : ''}
+        <div style="font-size:13px;margin-top:3px;">วันที่ ${reqDate}</div>
       </div>
     </div>
   </div>`;
@@ -548,7 +609,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     <div style="text-align:center;font-size:13px;margin-bottom:6mm;">ตามระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 175</div>
 
     <div style="display:flex;justify-content:flex-end;margin-bottom:2mm;">
-      <span>เขียนที่&nbsp;${esc(sn)}</span>
+      <span>เขียนที่โรงเรียน&nbsp;${esc(sn)}</span>
     </div>
     <div style="text-align:center;margin-bottom:6mm;">
       วันที่ ${FD(40,recvDay)} &nbsp; เดือน ${FD(80,recvMonth)} &nbsp; พ.ศ. ${FD(60,recvYear)}
@@ -593,7 +654,6 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;text-align:center;">
       <div>ลงชื่อ ${FL(220,'')}&nbsp;&nbsp;&nbsp;&nbsp;ผู้ตรวจรับพัสดุ</div>
       <div style="margin-top:4px;">(${inspName ? esc(inspName) : FL(160,'')})</div>
-      <div style="font-size:13px;margin-top:3px;">${recvDay ? recvDay + '/' + recvMonth + '/' + recvYear : '............../............../..............'}</div>
     </div>
   </div>`;
 
@@ -603,7 +663,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
   html += `<div class="page">
     <div class="doc-top">การ${docTypeName}โดยวิธีเฉพาะเจาะจง มาตรา 56 (2) (ข) วงเงินไม่เกิน 100,000 บาท</div>
     ${memoHeader()}
-    ${memoFields(sn, reqDate, docNo)}
+    ${memoFields(sn, receiveDate, docNo)}
     ${memoRow('เรื่อง','รายงานผลการตรวจรับพัสดุและอนุมัติจ่ายเงิน')}
     <div style="margin-top:6px;">เรียน&nbsp;&nbsp; ผู้อำนวยการโรงเรียน${sn}</div>
     <p style="text-indent:2.5em;margin-top:5px;line-height:1.7;">ตามที่ โรงเรียน ${sn} ได้${docTypeName} ${FD(80,esc(req.project_name||''))} จาก ${isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง'} ${FD(80,esc(req.vendor_name||''))} เป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)}) ตามสัญญา${isBuy ? 'ซื้อ' : 'จ้าง'}/${poTypeName} เลขที่ ${FD(0,poNo)}/${yr} ลงวันที่${FD(80,reqDate)} ครบกำหนดส่งมอบภายใน ${FD(0,deliveryDays)} วัน (วันที่ ${FD(0,deliveryDue.full)}) นั้น</p>
@@ -634,28 +694,96 @@ function buildPurchasePrintHtml(req, items, settings, school) {
         <div>ลงชื่อ ${FL(180,'')}</div>
         <div>(${finName || FL(140,'')})</div>
         <div>เจ้าหน้าที่การเงิน</div>
-        <div style="font-size:13px;margin-top:3px;">............../............../..............</div>
+      <div style="font-size:13px;margin-top:3px;">${recvDay ? recvDay + '/' + recvMonth + '/' + recvYear : '............../............../..............'}</div>
       </div>
       <div style="padding-left:16px;line-height:2.2;">
         <div>1. ทราบ</div>
         <div>2. อนุมัติ</div>
       </div>
     </div>
-    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div style="text-align:center;">
-        <div>ลงชื่อ ${FL(180,'')}</div>
-        <div>(${FL(160,'')})</div>
-        <div>รอง.ผอ.ร.ร.</div>
-        <div style="font-size:13px;margin-top:3px;">............../............../..............</div>
-      </div>
-      <div style="text-align:center;">
+    <div style="page-break-inside:avoid;break-inside:avoid;padding-top:20mm;display:flex;justify-content:flex-end;">
+      <div style="text-align:center;min-width:260px;">
         <div>ลงชื่อ ${FL(180,'')}</div>
         <div>(${dirName})</div>
         <div>${dirPos}${sn}</div>
-        <div style="font-size:13px;margin-top:3px;">............../............../..............</div>
+      <div style="font-size:13px;margin-top:3px;">${recvDay ? recvDay + '/' + recvMonth + '/' + recvYear : '............../............../..............'}</div>
       </div>
     </div>
   </div>`;
+
+  // ══════════════════════════════════════════════
+  // หน้า 11: ใบเบิกพัสดุ (แนวตั้ง)
+  // ══════════════════════════════════════════════
+  const itemRows11 = allItems.filter(it => it.item_name);
+  const emptyRows11 = Math.max(0, 15 - itemRows11.length);
+  html += `<div class="page">
+    <div style="text-align:center;font-size:15px;font-weight:700;margin-bottom:1mm;">ใบเบิกพัสดุ</div>
+    <div style="text-align:center;font-size:13px;margin-bottom:3mm;">สำนักงานคณะกรรมการการศึกษาขั้นพื้นฐาน</div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:2mm;font-size:14px;">
+      <div>โรงเรียน${FL(200,sn)}</div>
+      <div>เลขที่ ${FL(80,'')}</div>
+    </div>
+    <div style="font-size:14px;margin-bottom:3mm;">
+      วันที่ ${FL(40,'')} เดือน ${FL(80,'')} พ.ศ. ${FL(60,'')}
+      &nbsp;&nbsp;&nbsp; ขอเบิกพัสดุตามรายการต่อไปนี้
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr>
+          <th rowspan="2" style="border:1px solid #000;padding:4px 6px;text-align:center;width:50px;">ลำดับ<br>ที่</th>
+          <th rowspan="2" style="border:1px solid #000;padding:4px 6px;text-align:center;">รายการ</th>
+          <th colspan="2" style="border:1px solid #000;padding:4px 6px;text-align:center;">จำนวน</th>
+          <th rowspan="2" style="border:1px solid #000;padding:4px 6px;text-align:center;width:80px;">หมายเหตุ</th>
+        </tr>
+        <tr>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center;width:70px;">ขอเบิก</th>
+          <th style="border:1px solid #000;padding:4px 6px;text-align:center;width:70px;">เบิกได้</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows11.map((it, i) => `
+        <tr>
+          <td style="border:1px solid #000;padding:3px 4px;text-align:center;height:20px;">${i+1}</td>
+          <td style="border:1px solid #000;padding:3px 6px;">${esc(it.item_name||'')}${it.unit ? ' ('+esc(it.unit)+')' : ''}</td>
+          <td style="border:1px solid #000;padding:3px 4px;text-align:center;">${esc(it.qty||'')}</td>
+          <td style="border:1px solid #000;padding:3px 4px;text-align:center;">${esc(it.qty||'')}</td>
+          <td style="border:1px solid #000;padding:3px 4px;"></td>
+        </tr>`).join('')}
+        ${Array.from({length: emptyRows11}, () => `
+        <tr>
+          <td style="border:1px solid #000;padding:3px 4px;height:20px;"></td>
+          <td style="border:1px solid #000;padding:3px 4px;"></td>
+          <td style="border:1px solid #000;padding:3px 4px;"></td>
+          <td style="border:1px solid #000;padding:3px 4px;"></td>
+          <td style="border:1px solid #000;padding:3px 4px;"></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:10mm;font-size:14px;">
+      <div>
+        <div>อนุญาตให้เบิกจ่ายได้</div>
+        <div style="margin-top:6mm;">${FL(180,'')} ผู้สั่งจ่าย</div>
+        <div style="margin-top:8mm;">ได้ตรวจ หัก จำนวนแล้ว</div>
+        <div style="margin-top:6mm;">${FL(180,'')} เจ้าหน้าที่พัสดุ</div>
+        <div style="margin-top:6mm;">ได้รับของไปถูกต้องแล้ว</div>
+        <div style="margin-top:6mm;">${FL(180,'')} ผู้รับของ</div>
+        <div>(${FL(160,'')})</div>
+        <div>วันที่ ${FL(120,'')}</div>
+      </div>
+      <div>
+        <div>ลงชื่อผู้เบิก ${FL(140,'')}</div>
+        <div style="margin-top:4px;">(${FL(140,'')})</div>
+        <div>ตำแหน่ง ${FL(130,'')}</div>
+        <div style="margin-top:8mm;">ได้มอบให้ ${FL(100,'')}</div>
+        <div>เป็นผู้รับของแทน ${FL(80,'')} ผู้มอบ</div>
+        <div>ลงชื่อ ${FL(130,'')} ผู้รับมอบ</div>
+        <div>ลงชื่อ ${FL(130,'')} ผู้รับมอบ</div>
+      </div>
+    </div>
+  </div>`;
+
+
 
   html += `</body></html>`;
   return html;
