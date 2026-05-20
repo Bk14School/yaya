@@ -312,22 +312,157 @@ tbody tr:last-child td{border-bottom:none;}
 .legend-pct{font-size:10px;color:#94a3b8;margin-left:2px;}
 
 /* ═══════════════════════════════════
-   RESPONSIVE
+   HAMBURGER BUTTON (mobile only)
 ═══════════════════════════════════ */
-@media(max-width:900px){
-  .app-shell{grid-template-columns:1fr;}
-  .sidebar{display:none;}
-  .stats-row{grid-template-columns:1fr 1fr;}
-  .dash-grid,.dash-grid-3{grid-template-columns:1fr;}
-  .form-grid{grid-template-columns:1fr;}
-  .f1,.f2,.f3,.f4,.f5,.f6,.f8,.f12{grid-column:span 1;}
+.hamburger{display:none;align-items:center;justify-content:center;width:36px;height:36px;border:none;background:none;cursor:pointer;border-radius:8px;color:#374151;font-size:20px;flex-shrink:0;}
+.hamburger:hover{background:#f1f5f9;}
+
+/* Sidebar overlay backdrop */
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:299;backdrop-filter:blur(2px);}
+.sidebar-backdrop.open{display:block;}
+
+/* ═══════════════════════════════════
+   SKELETON
+═══════════════════════════════════ */
+.skeleton{background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ═══════════════════════════════════
+   RESPONSIVE — TABLET (≤1024px)
+═══════════════════════════════════ */
+@media(max-width:1024px){
+  :root{--sidebar-w:200px;}
+  .stats-row{grid-template-columns:repeat(2,1fr);}
+  .dash-grid-3{grid-template-columns:1fr 1fr;}
 }
+
+/* ═══════════════════════════════════
+   RESPONSIVE — MOBILE/TABLET (≤768px)
+═══════════════════════════════════ */
+@media(max-width:768px){
+  /* Layout */
+  .app-shell{grid-template-columns:1fr;}
+  .page-content{padding:14px 14px 60px;}
+  .topbar{padding:10px 14px;}
+
+  /* Hamburger */
+  .hamburger{display:flex;}
+
+  /* Sidebar → drawer */
+  .sidebar{
+    position:fixed;left:-260px;top:0;bottom:0;width:260px;
+    z-index:300;transition:left .25s cubic-bezier(.4,0,.2,1);
+    box-shadow:none;height:100vh;
+  }
+  .sidebar.open{left:0;box-shadow:4px 0 24px rgba(0,0,0,.18);}
+
+  /* Stats */
+  .stats-row{grid-template-columns:1fr 1fr;gap:8px;}
+  .stat-val{font-size:18px;}
+
+  /* Dashboard grids */
+  .dash-grid,.dash-grid-3{grid-template-columns:1fr;}
+
+  /* Pipeline → compact 2×2 */
+  .pipeline-wrap{flex-wrap:wrap;gap:0;}
+  .pipe-step{flex:1 1 calc(50% - 1px);min-width:0;}
+  .pipe-arrow{display:none;}
+
+  /* Form grid → 2-col on tablet, 1-col on phone */
+  .form-grid{grid-template-columns:1fr 1fr;gap:10px;}
+  .f1,.f2,.f3{grid-column:span 1;}
+  .f4,.f5,.f6{grid-column:span 1;}
+  .f8,.f12{grid-column:span 2;}
+
+  /* Tables */
+  table{min-width:0;}
+  .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* Nav tabs → scrollable */
+  .nav-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:2px;}
+  .nav-tab{white-space:nowrap;flex-shrink:0;font-size:12px;padding:8px 12px;}
+
+  /* Buttons */
+  .btn{padding:8px 13px;font-size:12px;}
+  .btn-sm{padding:6px 10px;font-size:11px;}
+
+  /* School bar */
+  .school-bar{flex-direction:column;align-items:flex-start;gap:8px;}
+  .school-info{flex-wrap:wrap;gap:8px;}
+
+  /* Print modal */
+  .preview-frame-wrap iframe{width:100%;min-height:80vh;}
+  .preview-frame-wrap{padding:8px;}
+
+  /* Section header */
+  .section-hd{flex-direction:column;align-items:flex-start;gap:8px;}
+  .section-hd > div{flex-wrap:wrap;}
+
+  /* Search/filter bar */
+  .section-hd input.input,.section-hd select.select{width:100%!important;}
+
+  /* Topbar right */
+  .topbar-right{gap:6px;}
+  .fy-chip{font-size:10px;padding:2px 8px;}
+
+  /* User modal */
+  #userModal > div{padding:20px 16px;}
+}
+
+/* ═══════════════════════════════════
+   RESPONSIVE — SMALL PHONE (≤480px)
+═══════════════════════════════════ */
+@media(max-width:480px){
+  .stats-row{grid-template-columns:1fr 1fr;gap:8px;}
+  .stat-card{padding:12px 14px;}
+  .stat-val{font-size:16px;}
+  .stat-label{font-size:10px;}
+
+  /* Form → single col */
+  .form-grid{grid-template-columns:1fr;gap:9px;}
+  .f1,.f2,.f3,.f4,.f5,.f6,.f8,.f12{grid-column:span 1;}
+
+  /* Settings 2-col grid */
+  #tabAdminSettings > div{grid-template-columns:1fr!important;}
+
+  /* Donut */
+  .donut-wrap{flex-direction:column;align-items:flex-start;gap:12px;}
+
+  /* Page content */
+  .page-content{padding:10px 10px 70px;}
+
+  /* Pipeline → vertical */
+  .pipeline-wrap{flex-direction:column;}
+  .pipe-step{border-right:1px solid var(--line);border-radius:0!important;}
+  .pipe-step:first-child{border-radius:var(--radius-lg) var(--radius-lg) 0 0!important;}
+  .pipe-step:last-child{border-radius:0 0 var(--radius-lg) var(--radius-lg)!important;}
+
+  /* Bottom nav bar for easy thumb access */
+  .bottom-nav{display:flex;}
+}
+
+/* ═══════════════════════════════════
+   BOTTOM NAV BAR (mobile only)
+═══════════════════════════════════ */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:#fff;border-top:1px solid var(--line);
+  z-index:200;padding:6px 0 env(safe-area-inset-bottom,6px);
+  box-shadow:0 -2px 12px rgba(0,0,0,.08);
+}
+.bottom-nav-inner{display:flex;justify-content:space-around;align-items:center;}
+.bnav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 8px;border-radius:8px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:10px;font-weight:600;color:#94a3b8;min-width:56px;position:relative;}
+.bnav-item.active{color:var(--blue-mid);}
+.bnav-item .bnav-icon{font-size:20px;line-height:1;}
+.bnav-badge{position:absolute;top:2px;right:6px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:999px;line-height:1.4;}
 </style>
 </head>
 <body>
 
 <div id="globalLoading" style="display:none;"></div>
 <div id="toastBox"></div>
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
 
 <!-- ════════════════════════════════════════════════
      LOGIN VIEW (standalone, no sidebar)
@@ -426,6 +561,7 @@ tbody tr:last-child td{border-bottom:none;}
   <div class="main-wrap">
     <header class="topbar">
       <div class="topbar-left">
+        <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="เปิดเมนู">☰</button>
         <span class="topbar-title" id="topbarTitle">ภาพรวมระบบ</span>
       </div>
       <div class="topbar-right">
@@ -960,6 +1096,11 @@ tbody tr:last-child td{border-bottom:none;}
                 <div class="field f6"><label>ตำแหน่ง</label><input id="director_position" class="input" type="text"></div>
                 <div class="field f6"><label>ชื่อเจ้าหน้าที่การเงิน</label><input id="finance_officer_name" class="input" type="text"></div>
                 <div class="field f6"><label>ตำแหน่ง</label><input id="finance_officer_position" class="input" type="text"></div>
+                <div class="field f12" style="grid-column:1/-1;border-top:1px solid var(--line);margin-top:6px;padding-top:12px;">
+                  <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;letter-spacing:.04em;">ผู้ตรวจรับพัสดุ (ค่าเริ่มต้นสำหรับเอกสาร)</div>
+                </div>
+                <div class="field f6"><label>ชื่อ-นามสกุล ผู้ตรวจรับ</label><input id="default_inspector_name" class="input" type="text" placeholder="เช่น นางสาวฮันนาน เจริญสุข"></div>
+                <div class="field f6"><label>ตำแหน่งผู้ตรวจรับ</label><input id="default_inspector_position" class="input" type="text" placeholder="เช่น ประธานกรรมการ"></div>
               </div>
             </div>
             <div class="card card-body">
@@ -1161,6 +1302,86 @@ function renderAdminDashboard(summary, statusCount, departments) {
 }
 
 function escHtml(s){ return String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
+
+/* ════════════════════════════════════════
+   MOBILE SIDEBAR TOGGLE
+════════════════════════════════════════ */
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+  const isOpen = sidebar.classList.contains('open');
+  if (isOpen) { closeSidebar(); } else { openSidebar(); }
+}
+function openSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  sidebar?.classList.add('open');
+  backdrop?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  sidebar?.classList.remove('open');
+  backdrop?.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+/* ════════════════════════════════════════
+   BOTTOM NAV HELPERS
+════════════════════════════════════════ */
+function setBottomNav(activeId) {
+  document.querySelectorAll('.bnav-item').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById(activeId);
+  if (el) el.classList.add('active');
+  closeSidebar();
+}
+
+function updateBottomNav(user) {
+  const bnavTeacher  = document.getElementById('bnavTeacher');
+  const bnavInspector= document.getElementById('bnavInspector');
+  const bnavAdmin    = document.getElementById('bnavAdmin');
+  if (!bnavTeacher) return;
+  bnavTeacher.style.display   = 'none';
+  bnavInspector.style.display = 'none';
+  bnavAdmin.style.display     = 'none';
+  if (!user) return;
+  if (user.role === 'teacher')   { bnavTeacher.style.display   = 'flex'; }
+  if (user.role === 'inspector') { bnavInspector.style.display = 'flex'; }
+  if (user.role === 'admin')     { bnavAdmin.style.display     = 'flex'; }
+}
+
+// sync badge กับ sidebar badge
+function syncBnavBadge(count) {
+  const b = document.getElementById('bnavInspBadge');
+  if (!b) return;
+  if (count > 0) { b.textContent = count > 99 ? '99+' : String(count); b.style.display = ''; }
+  else { b.style.display = 'none'; }
+}
+
+// ปิด sidebar เมื่อ nav item ถูกคลิก (mobile)
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    if (window.innerWidth <= 768) closeSidebar();
+  });
+});
+
+// swipe left ปิด sidebar
+(function(){
+  let startX = 0;
+  document.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, {passive:true});
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx < -60) { // swipe left
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar?.classList.contains('open')) closeSidebar();
+    }
+    if (dx > 60 && startX < 30) { // swipe right from edge
+      openSidebar();
+    }
+  }, {passive:true});
+})();
 </script>
 <script src="print.js"></script>
 <script src="app.js"></script>
@@ -1194,6 +1415,28 @@ function escHtml(s){ return String(s??'').replaceAll('&','&amp;').replaceAll('<'
     <iframe id="printPreviewFrame" title="ตัวอย่างเอกสาร"></iframe>
   </div>
 </div>
+
+<!-- Bottom Nav Bar (mobile only) -->
+<nav class="bottom-nav" id="bottomNav">
+  <div class="bottom-nav-inner">
+    <button class="bnav-item active" id="bnavPublic" onclick="navTo('Public');setBottomNav('bnavPublic');">
+      <span class="bnav-icon">📊</span>ภาพรวม
+    </button>
+    <button class="bnav-item" id="bnavTeacher" onclick="navTo('Teacher','tabNewReq');setBottomNav('bnavTeacher');" style="display:none;">
+      <span class="bnav-icon">📝</span>คำขอ
+    </button>
+    <button class="bnav-item" id="bnavInspector" onclick="navTo('Inspector');setBottomNav('bnavInspector');" style="display:none;">
+      <span class="bnav-icon">✅</span>ตรวจรับ
+      <span class="bnav-badge" id="bnavInspBadge" style="display:none;"></span>
+    </button>
+    <button class="bnav-item" id="bnavAdmin" onclick="navTo('Admin','tabAdminList');setBottomNav('bnavAdmin');" style="display:none;">
+      <span class="bnav-icon">🗂️</span>จัดการ
+    </button>
+    <button class="bnav-item" id="bnavMenu" onclick="toggleSidebar();">
+      <span class="bnav-icon">☰</span>เมนู
+    </button>
+  </div>
+</nav>
 
 <canvas id="confettiCanvas" style="display:none;"></canvas>
 </body>
