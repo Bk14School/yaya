@@ -339,6 +339,8 @@ function updateTopbar() {
       } else if (u.role === 'admin') {
         ['navAdminList','navAdminDash','navAdminSettings'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
       }
+      // อัปเดต bottom nav bar (mobile)
+      if (typeof updateBottomNav === 'function') updateBottomNav(u);
     } else {
       if (footerEl) footerEl.style.display = 'none';
       if (authEl)   authEl.style.display   = 'block';
@@ -997,6 +999,8 @@ function updateInspectorBadge(rows) {
   } else {
     badge.style.display = 'none';
   }
+  // sync bottom nav badge
+  if (typeof syncBnavBadge === 'function') syncBnavBadge(pending);
 }
 
 async function loadInspectorList() {
@@ -1093,13 +1097,14 @@ async function openInspectForm(id) {
     inspCalcTotal();
 
     // ── bind ข้อมูลตรวจรับ ──
-    // ชื่อ: ใช้ที่บันทึกไว้ก่อน ถ้าไม่มีดึงจาก login
-    const defaultName = req.inspector_name || (App.user ? App.user.full_name : '');
-    // ตำแหน่ง: ใช้ที่บันทึกไว้ก่อน → position จาก user → ดึงชื่อโรงเรียนจาก profile
-    const schoolName  = App.schoolProfile && App.schoolProfile.school_name
-                        ? 'ครูโรงเรียน' + App.schoolProfile.school_name
-                        : 'ครูโรงเรียนบ้านคลอง 14';
-    const defaultPos  = req.inspector_position || (App.user ? App.user.position : '') || schoolName;
+    // ชื่อ: ใช้ที่บันทึกไว้ก่อน → ค่าจาก Settings → ชื่อ login
+    const defaultName = req.inspector_name
+                        || App.systemSettings.default_inspector_name
+                        || (App.user ? App.user.full_name : '');
+    // ตำแหน่ง: ใช้ที่บันทึกไว้ก่อน → ค่าจาก Settings → position จาก user
+    const defaultPos  = req.inspector_position
+                        || App.systemSettings.default_inspector_position
+                        || (App.user ? App.user.position : '');
     setVal('inspName',     defaultName);
     setVal('inspPosition', defaultPos);
     setVal('inspReceive',        (req.receive_date||'').split('T')[0]||'');
@@ -1333,6 +1338,7 @@ function bindSettingsForm() {
   const s = App.systemSettings;
   ['procurement_officer_name','procurement_officer_position','procurement_head_name','procurement_head_position',
    'director_name','director_position','finance_officer_name','finance_officer_position',
+   'default_inspector_name','default_inspector_position',
    'default_delivery_days','vat_rate',
    'school_bank_account','school_bank_account_name','school_bank_name','school_bank_branch'].forEach(id => { if($(id)) $(id).value = s[id]||''; });
 }
@@ -1341,6 +1347,7 @@ async function saveSettings() {
   const payload = {};
   ['procurement_officer_name','procurement_officer_position','procurement_head_name','procurement_head_position',
    'director_name','director_position','finance_officer_name','finance_officer_position',
+   'default_inspector_name','default_inspector_position',
    'default_delivery_days','vat_rate',
    'school_bank_account','school_bank_account_name','school_bank_name','school_bank_branch'].forEach(id => { if($(id)) payload[id]=$(id).value; });
   setLoading(true,'กำลังบันทึก...');
@@ -1494,4 +1501,4 @@ function bindEvents() {
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
   initKeyboardShortcuts();
-}); 
+});
