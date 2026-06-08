@@ -768,7 +768,15 @@ tbody tr:last-child td{border-bottom:none;}
                   <option value="รออนุมัติ">รออนุมัติ</option>
                 </select>
               </div>
-              <div class="field f4"><label>เลขที่ใบสั่งซื้อ/จ้าง</label><input id="reqPoNo" class="input" type="text" readonly placeholder="(ออกให้อัตโนมัติเมื่อบันทึก)"></div>
+              <div class="field f4">
+                <label>เลขที่ใบสั่งซื้อ/จ้าง
+                  <span id="poNoEditHint" style="display:none;font-size:11px;color:#f59e0b;font-weight:600;margin-left:6px;">⚠️ แก้ไขด้วยตนเอง</span>
+                </label>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input id="reqPoNo" class="input" type="text" readonly placeholder="(ออกให้อัตโนมัติเมื่อบันทึก)" style="flex:1;">
+                  <button type="button" id="btnEditPoNo" style="display:none;padding:7px 10px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb;color:#b45309;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;" onclick="togglePoNoEdit()" title="แก้ไขเลขที่ด้วยตนเอง">🔒 แก้ไข</button>
+                </div>
+              </div>
               <div class="field f6"><label>ชื่อผู้ขอซื้อ</label><input id="reqTeacher" class="input" type="text"></div>
               <div class="field f6"><label>ฝ่าย / งาน</label><input id="reqDept" class="input" type="text"></div>
               <div class="field f4"><label>เลขที่หนังสือ (ที่ ศธ.)</label><input id="reqDocNo" class="input" type="text" placeholder="เช่น 04234/125"></div>
@@ -884,6 +892,14 @@ tbody tr:last-child td{border-bottom:none;}
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <input id="inspSearchInput" class="input" type="text" placeholder="🔍 ค้นหา..." style="width:180px;padding:7px 11px;font-size:13px;">
+            <select id="inspPoFilter" class="select" style="width:150px;padding:7px 11px;font-size:13px;">
+              <option value="">ทุกเลขที่</option>
+            </select>
+            <select id="inspTypeFilter" class="select" style="width:120px;padding:7px 11px;font-size:13px;">
+              <option value="">ทุกประเภท</option>
+              <option value="จัดซื้อ">🛒 จัดซื้อ</option>
+              <option value="จัดจ้าง">🔧 จัดจ้าง</option>
+            </select>
             <select id="inspStatusFilter" class="select" style="width:140px;padding:7px 11px;font-size:13px;">
               <option value="">ทุกสถานะ</option>
               <option value="รออนุมัติ">รออนุมัติ</option>
@@ -896,8 +912,8 @@ tbody tr:last-child td{border-bottom:none;}
 
         <div class="card" style="margin-bottom:16px;"><div class="tbl-wrap">
           <table>
-            <thead><tr><th>เลขที่</th><th>วันที่</th><th>ครูผู้ขอ</th><th>โครงการ</th><th style="text-align:right;">เงิน</th><th>สถานะ</th><th style="text-align:center;">จัดการ</th></tr></thead>
-            <tbody id="inspectorListBody"><tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px;">กำลังโหลด...</td></tr></tbody>
+            <thead><tr><th>เลขที่</th><th>ประเภท</th><th>เลขที่ ซ./จ.</th><th>วันที่</th><th>ครูผู้ขอ</th><th>โครงการ</th><th style="text-align:right;">เงิน</th><th>สถานะ</th><th style="text-align:center;">จัดการ</th></tr></thead>
+            <tbody id="inspectorListBody"><tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:24px;">กำลังโหลด...</td></tr></tbody>
           </table>
         </div></div>
 
