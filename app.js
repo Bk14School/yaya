@@ -693,6 +693,7 @@ function prepareTeacherForm() {
   clearItemsTable();
   addItemRow();
   calcTotal();
+  updatePoNoEditBtn();
 }
 
 async function loadMyRequests() {
@@ -781,10 +782,77 @@ function bindReqToForm(req, items) {
   const isHire = (req.proc_type || 'จัดซื้อ') === 'จัดจ้าง';
   if ($('fieldScopeOfWork')) $('fieldScopeOfWork').style.display = isHire ? '' : 'none';
 
+  // รีเซ็ตล็อคเลข po_no กลับ readonly เสมอเมื่อโหลดข้อมูล
+  const poInput = $('reqPoNo');
+  if (poInput) { poInput.readOnly = true; poInput.style.background = ''; poInput.style.borderColor = ''; }
+  const poHint = $('poNoEditHint'); if (poHint) poHint.style.display = 'none';
+  const poBtn  = $('btnEditPoNo');  if (poBtn)  poBtn.textContent = '🔒 แก้ไข';
+  updatePoNoEditBtn();
+
   clearItemsTable();
   (items||[]).forEach(it => addItemRow(it));
   if (!(items||[]).length) addItemRow();
   calcTotal();
+}
+
+// ── แก้ไขเลขที่ใบสั่งซื้อ/จ้าง ด้วยตนเอง (admin/inspector เท่านั้น) ──────────
+function togglePoNoEdit() {
+  const input = $('reqPoNo');
+  const btn   = $('btnEditPoNo');
+  const hint  = $('poNoEditHint');
+  if (!input || !btn) return;
+  const isLocked = input.readOnly;
+  if (isLocked) {
+    // ปลดล็อค
+    input.readOnly = false;
+    input.style.background = '#fffbeb';
+    input.style.borderColor = '#fcd34d';
+    input.focus();
+    btn.textContent = '🔓 ล็อค';
+    btn.style.background  = '#fef9c3';
+    btn.style.borderColor = '#f59e0b';
+    if (hint) hint.style.display = '';
+  } else {
+    // ล็อคกลับ
+    input.readOnly = true;
+    input.style.background = '';
+    input.style.borderColor = '';
+    btn.textContent = '🔒 แก้ไข';
+    btn.style.background  = '#fffbeb';
+    btn.style.borderColor = '#fcd34d';
+    if (hint) hint.style.display = 'none';
+  }
+}
+
+// toggle po_no สำหรับหน้าผู้ตรวจรับ
+function toggleInspPoNoEdit() {
+  const input = $('inspEditPoNo');
+  const btn   = $('btnInspEditPoNo');
+  const hint  = $('inspPoNoEditHint');
+  if (!input || !btn) return;
+  const isLocked = input.readOnly;
+  if (isLocked) {
+    input.readOnly = false;
+    input.style.background = '#fffbeb';
+    input.style.borderColor = '#fcd34d';
+    input.focus();
+    btn.textContent = '🔓 ล็อค';
+    if (hint) hint.style.display = '';
+  } else {
+    input.readOnly = true;
+    input.style.background = '';
+    input.style.borderColor = '';
+    btn.textContent = '🔒 แก้ไข';
+    if (hint) hint.style.display = 'none';
+  }
+}
+
+// แสดง/ซ่อนปุ่มแก้ไขเลขตาม role
+function updatePoNoEditBtn() {
+  const btn = $('btnEditPoNo');
+  if (!btn) return;
+  const role = App.user?.role || '';
+  btn.style.display = (role === 'admin' || role === 'inspector') ? '' : 'none';
 }
 
 async function saveRequestForm() {
@@ -830,7 +898,7 @@ async function saveRequestForm() {
 
   setLoading(true,'กำลังบันทึก...');
   try {
-    const res = await api('saveRequest',{request:req,items},'POST');
+    const res = await api('saveRequest',{request:req, items, caller_role: App.user?.role || ''},'POST');
     if (!res.ok) throw new Error(res.message);
     setVal('reqId', res.request_id);
     setVal('reqPoNo', res.po_no || '');
@@ -1074,9 +1142,28 @@ async function openInspectForm(id) {
     setVal('inspEditTeacher',     req.teacher_name||'');
     setVal('inspEditDept',        req.department||'');
     setVal('inspEditDocNo',       req.doc_no||'');
+    // ประเภท + po_no
+    if ($('inspEditProcType')) {
+      $('inspEditProcType').value = req.proc_type || 'จัดซื้อ';
+      const isHire = (req.proc_type||'จัดซื้อ') === 'จัดจ้าง';
+      if ($('inspFieldScopeOfWork')) $('inspFieldScopeOfWork').style.display = isHire ? '' : 'none';
+      $('inspEditProcType').onchange = () => {
+        const h = $('inspEditProcType').value === 'จัดจ้าง';
+        if ($('inspFieldScopeOfWork')) $('inspFieldScopeOfWork').style.display = h ? '' : 'none';
+      };
+    }
+    // reset po_no lock
+    const inspPoInput = $('inspEditPoNo');
+    if (inspPoInput) { inspPoInput.readOnly = true; inspPoInput.style.background=''; inspPoInput.style.borderColor=''; }
+    const inspPoHint = $('inspPoNoEditHint'); if (inspPoHint) inspPoHint.style.display='none';
+    const inspPoBtn  = $('btnInspEditPoNo');  if (inspPoBtn)  inspPoBtn.textContent='🔒 แก้ไข';
+    setVal('inspEditPoNo', req.po_no||'');
     setVal('inspEditProject',     req.project_name||'');
     setVal('inspEditDelivery',    req.delivery_days||'7');
+    setVal('inspEditObjective',   req.objective||req.scope_of_work||'');
     setVal('inspEditReason',      req.reason||'');
+    setVal('inspEditItemDetail',  req.item_detail||'');
+    setVal('inspEditScopeOfWork', req.scope_of_work||'');
     setVal('inspEditBudgetSource',req.budget_source||'');
     setVal('inspEditActivity',    req.activity_name||'');
     setVal('inspEditVendor',      req.vendor_name||'');
@@ -1085,6 +1172,10 @@ async function openInspectForm(id) {
     setVal('inspEditVendorAddr',  req.vendor_address||'');
     setVal('inspEditQuoteNo',     req.quote_no||'');
     setVal('inspEditQuoteDate',   (req.quote_date||'').split('T')[0]||'');
+    setVal('inspEditVendorBankAccount',  req.vendor_bank_account||'');
+    setVal('inspEditVendorBankName',     req.vendor_bank_name||'');
+    setVal('inspEditVendorBankBankName', req.vendor_bank_bank_name||'');
+    setVal('inspEditVendorBankBranch',   req.vendor_bank_branch||'');
 
     // ── ตารางรายการพัสดุ editable ──
     const tbody = $('inspItemsBody');
@@ -1199,21 +1290,30 @@ async function saveInspectEdit() {
   const totalAmt = newItems.reduce((s, it) => s + (it.amount||0), 0);
   const updated = {
     ...req,
-    request_date:   val('inspEditDate')         || req.request_date,
-    teacher_name:   val('inspEditTeacher')       || req.teacher_name,
-    department:     val('inspEditDept')          || req.department,
-    doc_no:         val('inspEditDocNo')         || req.doc_no,
-    project_name:   val('inspEditProject')       || req.project_name,
-    delivery_days:  val('inspEditDelivery')      || req.delivery_days,
-    reason:         val('inspEditReason')        || req.reason,
-    budget_source:  val('inspEditBudgetSource')  || req.budget_source,
-    activity_name:  val('inspEditActivity')      || req.activity_name,
-    vendor_name:    val('inspEditVendor')        || req.vendor_name,
-    vendor_phone:   val('inspEditVendorPhone')   || req.vendor_phone,
-    vendor_tax_id:  val('inspEditVendorTax')     || req.vendor_tax_id,
-    vendor_address: val('inspEditVendorAddr')    || req.vendor_address,
-    quote_no:       val('inspEditQuoteNo')       || req.quote_no,
-    quote_date:     val('inspEditQuoteDate')     || req.quote_date,
+    proc_type:      $('inspEditProcType')?.value        || req.proc_type,
+    po_no:          val('inspEditPoNo')                  || req.po_no,
+    request_date:   val('inspEditDate')                  || req.request_date,
+    teacher_name:   val('inspEditTeacher')               || req.teacher_name,
+    department:     val('inspEditDept')                  || req.department,
+    doc_no:         val('inspEditDocNo')                 || req.doc_no,
+    project_name:   val('inspEditProject')               || req.project_name,
+    delivery_days:  val('inspEditDelivery')              || req.delivery_days,
+    objective:      val('inspEditObjective')             || req.objective,
+    item_detail:    val('inspEditItemDetail')            || req.item_detail,
+    scope_of_work:  val('inspEditScopeOfWork')           || req.scope_of_work,
+    reason:         val('inspEditReason')                || req.reason,
+    budget_source:  val('inspEditBudgetSource')          || req.budget_source,
+    activity_name:  val('inspEditActivity')              || req.activity_name,
+    vendor_name:    val('inspEditVendor')                || req.vendor_name,
+    vendor_phone:   val('inspEditVendorPhone')           || req.vendor_phone,
+    vendor_tax_id:  val('inspEditVendorTax')             || req.vendor_tax_id,
+    vendor_address: val('inspEditVendorAddr')            || req.vendor_address,
+    quote_no:       val('inspEditQuoteNo')               || req.quote_no,
+    quote_date:     val('inspEditQuoteDate')             || req.quote_date,
+    vendor_bank_account:   val('inspEditVendorBankAccount')   || req.vendor_bank_account,
+    vendor_bank_name:      val('inspEditVendorBankName')      || req.vendor_bank_name,
+    vendor_bank_bank_name: val('inspEditVendorBankBankName')  || req.vendor_bank_bank_name,
+    vendor_bank_branch:    val('inspEditVendorBankBranch')    || req.vendor_bank_branch,
     total_amount:   totalAmt,
     total_amount_text: typeof numberToThai === 'function' ? numberToThai(totalAmt) : req.total_amount_text,
   };
