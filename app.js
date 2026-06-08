@@ -1079,6 +1079,13 @@ async function loadInspectorList() {
     const res = await api('listRequests',{ role:'inspector' });
     if (!res.ok) throw new Error(res.message);
     App._inspRows = res.requests||[];
+    // populate เลขที่ ซ./จ. dropdown
+    const poSel = $('inspPoFilter');
+    if (poSel) {
+      const poNos = [...new Set((App._inspRows).map(r=>r.po_no||'').filter(Boolean))].sort();
+      poSel.innerHTML = '<option value="">ทุกเลขที่</option>' +
+        poNos.map(p=>`<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
+    }
     renderInspectorList(App._inspRows);
     updateInspectorBadge(App._inspRows);
   } catch(e){ toast(e.message,'error'); }
@@ -1091,18 +1098,28 @@ function renderInspectorList(rows) {
   // apply filter
   const q = ($('inspSearchInput')?.value||'').toLowerCase();
   const s = $('inspStatusFilter')?.value||'';
+  const t = $('inspTypeFilter')?.value||'';
+  const po = $('inspPoFilter')?.value||'';
   const filtered = rows.filter(r => {
     const matchQ = !q || (r.request_id||'').toLowerCase().includes(q) ||
       (r.teacher_name||'').toLowerCase().includes(q) ||
       (r.project_name||'').toLowerCase().includes(q) ||
-      (r.vendor_name||'').toLowerCase().includes(q);
+      (r.vendor_name||'').toLowerCase().includes(q) ||
+      (r.po_no||'').toLowerCase().includes(q);
     const matchS = !s || r.status === s;
-    return matchQ && matchS;
+    const matchT = !t || r.proc_type === t;
+    const matchPo = !po || r.po_no === po;
+    return matchQ && matchS && matchT && matchPo;
   });
-  if (!filtered.length) { el.innerHTML='<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px;">ไม่พบรายการ</td></tr>'; return; }
+  if (!filtered.length) { el.innerHTML='<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:24px;">ไม่พบรายการ</td></tr>'; return; }
+  const typeChipInsp = t => t === 'จัดจ้าง'
+    ? '<span style="font-size:11px;background:#fef9c3;color:#854d0e;padding:2px 7px;border-radius:999px;font-weight:700;">🔧 จ้าง</span>'
+    : '<span style="font-size:11px;background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:999px;font-weight:700;">🛒 ซื้อ</span>';
   el.innerHTML = filtered.map(r=>`
     <tr>
       <td style="font-size:13px;font-weight:600;color:#2563eb;">${escHtml(r.request_id||'')}</td>
+      <td>${typeChipInsp(r.proc_type||'จัดซื้อ')}</td>
+      <td style="font-size:13px;font-weight:600;color:#7c3aed;">${escHtml(r.po_no||'-')}</td>
       <td style="font-size:13px;color:#64748b;">${escHtml((r.request_date||r.created_at||'').split(' ')[0])}</td>
       <td>${escHtml(r.teacher_name||'')}</td>
       <td>${escHtml(r.project_name||'')}</td>
@@ -1111,6 +1128,7 @@ function renderInspectorList(rows) {
       <td style="text-align:center;">
         <button class="btn-action" onclick="openInspectForm('${escHtml(r.request_id||'')}')">ตรวจรับ/ดู</button>
         ${r.status!=='ร่าง'?`<button class="btn-action btn-print" onclick="printById('${escHtml(r.request_id||'')}')">พิมพ์</button>`:''}
+        ${r.status!=='เบิกจ่ายแล้ว'?`<button class="btn-action" style="color:#dc2626;border-color:#fca5a5;" onclick="deleteInspectRequest('${escHtml(r.request_id||'')}','${escHtml(r.project_name||'')}','${escHtml(r.status||'')}')">🗑️ ลบ</button>`:''}
       </td>
     </tr>`).join('');
 }
@@ -1327,6 +1345,24 @@ async function saveInspectEdit() {
     setEl('inspAmount', fmtMoney(totalAmt));
     toast('บันทึกการแก้ไขข้อมูลเรียบร้อย','success');
   } catch(e){ toast(e.message,'error'); }
+  finally { setLoading(false); }
+}
+
+async function deleteInspectRequest(id, name, status) {
+  const warn = status === 'รออนุมัติ' ? '\n⚠️ คำขอนี้อยู่ระหว่างรอตรวจรับ' : '';
+  if (!confirm(`ลบคำขอซื้อ "${name}" (${id}) ?${warn}\n\nการลบจะไม่สามารถกู้คืนได้`)) return;
+  setLoading(true, 'กำลังลบ...');
+  try {
+    const res = await api('deleteRequest', { request_id: id, caller_role: App.user?.role || '' }, 'POST');
+    if (!res.ok) throw new Error(res.message);
+    toast(res.message, 'success');
+    // ถ้ากำลังเปิดฟอร์มอยู่ ให้ปิด
+    if (App.currentId === id) {
+      App.currentId = null; App.currentReq = null; App.currentItems = [];
+      hide('inspectFormPanel');
+    }
+    await loadInspectorList();
+  } catch(e) { toast(e.message, 'error'); }
   finally { setLoading(false); }
 }
 
@@ -1588,6 +1624,8 @@ function bindEvents() {
   // Inspector search/filter
   $('inspSearchInput')?.addEventListener('input', ()=>renderInspectorList(App._inspRows||[]));
   $('inspStatusFilter')?.addEventListener('change', ()=>renderInspectorList(App._inspRows||[]));
+  $('inspTypeFilter')?.addEventListener('change', ()=>renderInspectorList(App._inspRows||[]));
+  $('inspPoFilter')?.addEventListener('change', ()=>renderInspectorList(App._inspRows||[]));
 
   // Admin search/filter
   $('adminSearchInput')?.addEventListener('input', ()=>renderAdminList(App._adminRows||[]));
