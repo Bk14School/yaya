@@ -315,11 +315,8 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     <div style="margin-top:2mm;">โรงเรียน${FL(200,sn)} สำนักงานเขตพื้นที่การศึกษาประถมศึกษา${areaOffice}</div>
     <div style="margin-top:4mm;font-weight:700;">1. ชื่อโครงการ จ้าง${FL(320,esc(req.project_name||''))}</div>
     <div style="margin-top:3mm;font-weight:700;">2. ขอบเขตของงานจ้าง</div>
-    ${(req.scope_of_work ? req.scope_of_work.split('\n').filter(l=>l.trim()) : ['']).map((line,i)=>
-      `<div style="margin-left:16px;margin-top:2mm;">${i+1 <= 4 ? (i+1)+'. ' : ''}${esc(line)}</div>`
-    ).join('')}
-    ${Array.from({length: Math.max(0, 4-(req.scope_of_work||'').split('\n').filter(l=>l.trim()).length)}, (_,i)=>
-      `<div style="margin-left:16px;margin-top:2mm;">${(req.scope_of_work||'').split('\n').filter(l=>l.trim()).length+i+1}. ${FL(300,'')}</div>`
+    ${(req.scope_of_work ? req.scope_of_work.split('\n').filter(l=>l.trim()) : []).map((line,i)=>
+      `<div style="margin-left:16px;margin-top:2mm;">2.${i+1} ${esc(line.replace(/^\d+[\.)\s]*/,''))}</div>`
     ).join('')}
     <div style="margin-top:5mm;font-weight:700;">3. เกณฑ์ที่ใช้ในการพิจารณา</div>
     <div style="margin-left:16px;">เกณฑ์ราคา</div>
@@ -736,7 +733,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       <div>เลขที่ ${FL(80,'')}</div>
     </div>
     <div style="font-size:14px;margin-bottom:3mm;">
-      วันที่ ${FL(40,'')} เดือน ${FL(80,'')} พ.ศ. ${FL(60,'')}
+      วันที่ ${FD(80,receiveDate)}
       &nbsp;&nbsp;&nbsp; ขอเบิกพัสดุตามรายการต่อไปนี้
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
@@ -776,17 +773,17 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       <div>
         <div>อนุญาตให้เบิกจ่ายได้</div>
         <div style="margin-top:6mm;">${FL(180,'')} ผู้สั่งจ่าย</div>
-        <div style="margin-top:8mm;">ได้ตรวจ ทัก จำนวนแล้ว</div>
+        <div style="margin-top:8mm;">ได้ตรวจ หัก จำนวนแล้ว</div>
         <div style="margin-top:6mm;">${FL(180,'')} เจ้าหน้าที่พัสดุ</div>
         <div style="margin-top:6mm;">ได้รับของไปถูกต้องแล้ว</div>
         <div style="margin-top:6mm;">${FL(180,'')} ผู้รับของ</div>
         <div>(${FL(160,'')})</div>
         <div>วันที่ ${FL(120,'')}</div>
       </div>
-      <div>
+<div>
         <div>ลงชื่อผู้เบิก ${FL(140,'')}</div>
-        <div style="margin-top:4px;">(${FL(140,'')})</div>
-        <div>ตำแหน่ง ${FL(130,'')}</div>
+        <div style="margin-top:4px;padding-left:75px;">(${esc(req.teacher_name||'')})</div>
+        <div style="margin-top:4px;padding-left:ุ70px;">ตำแหน่ง ครูโรงเรียนบ้านคลอง 14</div>
         <div style="margin-top:8mm;">ได้มอบให้ ${FL(100,'')}</div>
         <div>เป็นผู้รับของแทน ${FL(80,'')} ผู้มอบ</div>
         <div>ลงชื่อ ${FL(130,'')} ผู้รับมอบ</div>
