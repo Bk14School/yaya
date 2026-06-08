@@ -929,6 +929,22 @@ tbody tr:last-child td{border-bottom:none;}
                   <div class="field f3"><label>ชื่อผู้ขอซื้อ</label><input id="inspEditTeacher" class="input" type="text" placeholder="ชื่อครู"></div>
                   <div class="field f3"><label>ฝ่าย / งาน</label><input id="inspEditDept" class="input" type="text" placeholder="ฝ่าย"></div>
                   <div class="field f3"><label>เลขที่หนังสือ (ที่ ศธ.)</label><input id="inspEditDocNo" class="input" type="text" placeholder="เช่น 04234/125"></div>
+                  <div class="field f3">
+                    <label>ประเภท</label>
+                    <select id="inspEditProcType" class="select">
+                      <option value="จัดซื้อ">🛒 จัดซื้อ</option>
+                      <option value="จัดจ้าง">🔧 จัดจ้าง</option>
+                    </select>
+                  </div>
+                  <div class="field f3">
+                    <label>เลขที่ใบสั่งซื้อ/จ้าง
+                      <span id="inspPoNoEditHint" style="display:none;font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px;">⚠️ แก้ไข</span>
+                    </label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                      <input id="inspEditPoNo" class="input" type="text" readonly placeholder="(อัตโนมัติ)" style="flex:1;">
+                      <button type="button" id="btnInspEditPoNo" style="padding:7px 10px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb;color:#b45309;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;" onclick="toggleInspPoNoEdit()">🔒 แก้ไข</button>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- กลุ่ม 2: โครงการ -->
@@ -937,20 +953,33 @@ tbody tr:last-child td{border-bottom:none;}
                   <div class="field f8"><label>ชื่อโครงการ / งานจัดซื้อ</label><input id="inspEditProject" class="input" type="text" placeholder="ชื่อโครงการ"></div>
                   <div class="field f2"><label>กำหนดส่ง (วัน)</label><input id="inspEditDelivery" class="input" type="number" min="1"></div>
                   <div class="field f2"><label>&nbsp;</label><div style="height:38px;"></div></div>
-                  <div class="field f6"><label>เหตุผลและความจำเป็น</label><textarea id="inspEditReason" class="textarea" style="min-height:56px;" placeholder="เหตุผล"></textarea></div>
-                  <div class="field f3"><label>แผนงาน / แหล่งงบประมาณ</label><input id="inspEditBudgetSource" class="input" type="text" placeholder="แหล่งงบ"></div>
-                  <div class="field f3"><label>กิจกรรมหลัก</label><input id="inspEditActivity" class="input" type="text" placeholder="กิจกรรม"></div>
+                  <div class="field f12"><label>วัตถุประสงค์ (เพื่อ...)</label><input id="inspEditObjective" class="input" type="text" placeholder="เช่น เพื่อใช้ในการดำเนินงานของโรงเรียน"></div>
+                  <div class="field f12"><label>เหตุผลและความจำเป็นที่ต้องซื้อ/จ้าง (ข้อ 1)</label><textarea id="inspEditReason" class="textarea" style="min-height:56px;" placeholder="เหตุผล"></textarea></div>
+                  <div class="field f12"><label>รายละเอียดสิ่งที่จะซื้อ/จ้าง (ข้อ 2)</label><textarea id="inspEditItemDetail" class="textarea" style="min-height:56px;" placeholder="รายละเอียด"></textarea></div>
+                  <div id="inspFieldScopeOfWork" class="field f12" style="display:none;"><label>ขอบเขตของงาน (TOR) <span style="color:#94a3b8;font-size:12px;">แต่ละบรรทัด = 1 ข้อ</span></label><textarea id="inspEditScopeOfWork" class="textarea" rows="4" placeholder="2.1 ...&#10;2.2 ...&#10;2.3 ..."></textarea></div>
+                  <div class="field f6"><label>แผนงาน / แหล่งงบประมาณ</label><input id="inspEditBudgetSource" class="input" type="text" placeholder="แหล่งงบ"></div>
+                  <div class="field f6"><label>กิจกรรมหลัก</label><input id="inspEditActivity" class="input" type="text" placeholder="กิจกรรม"></div>
                 </div>
 
                 <!-- กลุ่ม 3: ผู้ขาย -->
                 <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;">ผู้ขาย / ร้านค้า</div>
                 <div class="form-grid">
-                  <div class="field f4"><label>ชื่อร้าน / บริษัท / ผู้ขาย</label><input id="inspEditVendor" class="input" type="text" placeholder="ชื่อร้าน"></div>
+                  <div class="field f6"><label>ชื่อร้าน / บริษัท / ผู้ขาย</label><input id="inspEditVendor" class="input" type="text" placeholder="ชื่อร้าน"></div>
                   <div class="field f3"><label>โทรศัพท์</label><input id="inspEditVendorPhone" class="input" type="text" placeholder="เบอร์โทร"></div>
-                  <div class="field f3"><label>เลขผู้เสียภาษี</label><input id="inspEditVendorTax" class="input" type="text" placeholder="เลขผู้เสียภาษี"></div>
-                  <div class="field f2"><label>ใบเสนอราคาเลขที่</label><input id="inspEditQuoteNo" class="input" type="text" placeholder="เลขที่"></div>
-                  <div class="field f8"><label>ที่อยู่ผู้ขาย</label><input id="inspEditVendorAddr" class="input" type="text" placeholder="ที่อยู่"></div>
+                  <div class="field f3"><label>เลขประจำตัวผู้เสียภาษี</label><input id="inspEditVendorTax" class="input" type="text" placeholder="เลขผู้เสียภาษี"></div>
+                  <div class="field f12"><label>ที่อยู่ผู้ขาย</label><textarea id="inspEditVendorAddr" class="textarea" style="min-height:56px;" placeholder="ที่อยู่ร้านหรือบริษัท"></textarea></div>
+                  <div class="field f4"><label>ใบเสนอราคาเลขที่</label><input id="inspEditQuoteNo" class="input" type="text" placeholder="เลขที่"></div>
                   <div class="field f4"><label>วันที่ใบเสนอราคา</label><input id="inspEditQuoteDate" class="input" type="date"></div>
+                  <div class="field f4"><label>&nbsp;</label><div style="height:38px;"></div></div>
+                </div>
+
+                <!-- กลุ่ม 3.5: บัญชีธนาคารผู้ขาย -->
+                <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;">บัญชีธนาคารผู้ขาย</div>
+                <div class="form-grid">
+                  <div class="field f6"><label>เลขที่บัญชีธนาคาร</label><input id="inspEditVendorBankAccount" class="input" type="text" placeholder="เลขที่บัญชี"></div>
+                  <div class="field f6"><label>ชื่อบัญชี</label><input id="inspEditVendorBankName" class="input" type="text" placeholder="ชื่อบัญชี"></div>
+                  <div class="field f6"><label>ธนาคาร</label><input id="inspEditVendorBankBankName" class="input" type="text" placeholder="เช่น ธนาคารกรุงไทย"></div>
+                  <div class="field f6"><label>สาขา</label><input id="inspEditVendorBankBranch" class="input" type="text" placeholder="สาขา"></div>
                 </div>
 
                 <!-- กลุ่ม 4: รายการพัสดุ (แก้ไขได้) -->
