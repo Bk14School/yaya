@@ -180,6 +180,8 @@ function buildPurchasePrintHtml(req, items, settings, school) {
   const poNo         = esc(req.po_no||req.request_id||'');
   const procType     = req.proc_type || 'จัดซื้อ';
   const isBuy        = procType !== 'จัดจ้าง';
+  const pn           = req.purchase_name || '';  // งานที่ซื้อ/จ้าง (ห้าม fallback เป็น project_name)
+  const prj          = req.project_name  || '';                      // ชื่อโครงการ
   const docTypeName  = isBuy ? 'จัดซื้อ'       : 'จัดจ้าง';
   const poTypeName   = isBuy ? 'ใบสั่งซื้อ'    : 'ใบสั่งจ้าง';
   const recvTypeName = isBuy ? 'ใบตรวจรับพัสดุ' : 'ใบตรวจรับงานจ้าง';
@@ -288,9 +290,9 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     <div class="doc-top">การ${docTypeName}โดยวิธีเฉพาะเจาะจง มาตรา 56 (2) (ข) วงเงินไม่เกิน 100,000 บาท</div>
     ${isBuy ? `
     <div style="text-align:center;font-size:20px;font-weight:700;margin:2mm 0 3mm;">รายละเอียดคุณลักษณะเฉพาะพัสดุ</div>
-    <div style="text-align:center;">จัดซื้อ${FL(140,esc(req.project_name||''))}จำนวน${FL(50,String(itemCount))}รายการ</div>
+    <div style="text-align:center;">จัดซื้อ${FL(140,esc(pn))}จำนวน${FL(50,String(itemCount))}รายการ</div>
     <div style="margin-top:2mm;">โรงเรียน${FL(200,sn)} สำนักงานเขตพื้นที่การศึกษาประถมศึกษา${areaOffice}</div>
-    <div style="margin-top:4mm;font-weight:700;">1.ชื่อโครงการ ซื้อ${FL(320,esc(req.project_name||''))}</div>
+    <div style="margin-top:4mm;font-weight:700;">1.ชื่อโครงการ ${FL(160,esc(prj))}</div>
     <div style="margin-top:3mm;font-weight:700;">2.รายละเอียดของพัสดุที่ต้องการ</div>
     <table class="dt" style="margin-top:3px;">
       ${itemTableHead(true)}
@@ -311,9 +313,9 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     <div style="margin-left:16px;">เป็นเงิน ${FL(140,total)} บาท (${FL(140,totalText)})</div>
     ` : `
     <div style="text-align:center;font-size:20px;font-weight:700;margin:2mm 0 3mm;">ขอบเขตของงาน (Terms of Reference : TOR)</div>
-    <div style="text-align:center;">จัดจ้าง${FL(140,esc(req.project_name||''))}จำนวน${FL(50,String(itemCount))}รายการ</div>
+    <div style="text-align:center;">จัดจ้าง${FL(140,esc(pn))}จำนวน${FL(50,String(itemCount))}รายการ</div>
     <div style="margin-top:2mm;">โรงเรียน${FL(200,sn)} สำนักงานเขตพื้นที่การศึกษาประถมศึกษา${areaOffice}</div>
-    <div style="margin-top:4mm;font-weight:700;">1. ชื่อโครงการ จ้าง${FL(320,esc(req.project_name||''))}</div>
+    <div style="margin-top:4mm;font-weight:700;">1. ชื่อโครงการ ${FL(160,esc(prj))} จ้าง${FL(160,esc(pn))}</div>
     <div style="margin-top:3mm;font-weight:700;">2. ขอบเขตของงานจ้าง</div>
     ${(req.scope_of_work ? req.scope_of_work.split('\n').filter(l=>l.trim()) : []).map((line,i)=>
       `<div style="margin-left:16px;margin-top:2mm;">2.${i+1} ${esc(line.replace(/^\d+[\.)\s]*/,''))}</div>`
@@ -350,12 +352,12 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     ${memoFields(sn, reqDate, docNo)}
     ${memoRow('เรื่อง', isBuy ? 'รายงานขอซื้อ' : 'รายงานขอจ้าง')}
     <div style="margin-top:4px;">เรียน&nbsp;&nbsp; ผู้อำนวยการโรงเรียน${sn}</div>
-    <p style="text-indent:2.5em;margin-top:3px;margin-bottom:0;line-height:1.55;">ด้วย โรงเรียน ${sn} มีความประสงค์${isBuy ? 'จะขอซื้อ' : 'ขอจ้าง'} ${FD(120,esc(req.project_name||''))} เพื่อ ${FD(100,esc(req.objective||req.reason||''))} โดยเบิกจ่ายจากแผนงาน ${FD(80,esc(req.budget_source||''))} โครงการ ${FD(80,esc(req.project_name||''))} กิจกรรมหลัก ${FD(70,esc(req.activity_name||''))} เป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)})</p>
+    <p style="text-indent:2.5em;margin-top:3px;margin-bottom:0;line-height:1.55;">ด้วย โรงเรียน ${sn} มีความประสงค์${isBuy ? 'จะขอซื้อ' : 'ขอจ้าง'} ${FD(120,esc(pn))} เพื่อ ${FD(100,esc(req.objective||''))} โดยเบิกจ่ายจากแผนงาน ${FD(80,esc(req.budget_source||''))} โครงการ ${FD(80,esc(prj))} กิจกรรมหลัก ${FD(70,esc(req.activity_name||''))} เป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)})</p>
     <p style="text-indent:2.5em;margin-top:3px;margin-bottom:0;line-height:1.55;">งานพัสดุได้ตรวจสอบแล้วเห็นควร${docTypeName}ตามเสนอ และเพื่อให้เป็นไปตามพระราชบัญญัติการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 มาตรา 56 วรรคหนึ่ง (2) (ข) และระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 22 ข้อ 79 ข้อ 25 (5) และกฎกระทรวงกำหนดวงเงินการจัดซื้อจัดจ้างพัสดุโดยวิธีเฉพาะเจาะจง วงเงินการจัดซื้อจัดจ้างที่ไม่ทำข้อตกลงเป็นหนังสือ และวงเงินการจัดซื้อจัดจ้างในการแต่งตั้งผู้ตรวจรับพัสดุ พ.ศ.2560 ข้อ 1 และข้อ 5</p>
     <div style="margin-top:3px;">จึงขอรายงาน${isBuy ? 'ขอซื้อ' : 'ขอจ้าง'} ดังนี้</div>
     <table style="width:100%;border-collapse:collapse;margin-top:1px;font-size:14px;line-height:1.5;">
       <tr><td style="width:24px;vertical-align:top;">1.</td><td>เหตุผลและความจำเป็นที่ต้อง${isBuy ? 'ซื้อ' : 'จ้าง'} ${FD(160,esc(req.reason||''))}</td></tr>
-      <tr><td style="vertical-align:top;">2.</td><td>รายละเอียดและ${isBuy ? 'งานที่จะซื้อ' : 'งานที่จะจ้าง'} ${FD(160,esc(req.item_detail||req.project_name||''))}</td></tr>
+      <tr><td style="vertical-align:top;">2.</td><td>รายละเอียดและ${isBuy ? 'งานที่จะซื้อ' : 'งานที่จะจ้าง'} ${FD(160,esc(req.item_detail||pn||''))}</td></tr>
       <tr><td style="vertical-align:top;">3.</td><td>ราคากลางของทางราชการเป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)})</td></tr>
       <tr><td style="vertical-align:top;">4.</td><td>วงเงินที่จะขอ${isBuy ? 'ซื้อ' : 'จ้าง'}ครั้งนี้ ${FD(0,total)} บาท (${FD(0,totalText)})</td></tr>
       <tr><td style="vertical-align:top;">5.</td><td>กำหนดเวลาทำงาน ${FD(40,deliveryDays)} วัน นับถัดจากวันลงนามในสัญญา</td></tr>
@@ -404,7 +406,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
   html += `<div class="page">
     <div class="doc-top">การ${docTypeName}โดยวิธีเฉพาะเจาะจง มาตรา 56 (2) (ข) วงเงินไม่เกิน 100,000 บาท</div>
     <div style="font-size:16px;font-weight:700;margin-bottom:1mm;">รายละเอียดแนบท้ายบันทึกข้อความ ที่ ศธ ${FL(60,docNo)}/${FL(50,yr)} ลงวันที่ ${FL(80,reqDate)}</div>
-    <div style="font-size:16px;font-weight:700;margin-bottom:1mm;">งาน${docTypeName}${FL(140,esc(req.project_name||''))} จำนวน ${FL(50,String(itemCount))} รายการ</div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:1mm;">งาน${docTypeName}${FL(140,esc(pn))} จำนวน ${FL(50,String(itemCount))} รายการ</div>
     <div>โรงเรียน${FL(220,sn)}</div>
     <table class="dt" style="margin-top:4px;">
       ${itemTableHead(true)}
@@ -454,11 +456,11 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     ${memoFields(sn, reqDate, docNo)}
     ${memoRow('เรื่อง', `รายงานผลการพิจารณาและขออนุมัติสั่ง${isBuy ? 'ซื้อ' : 'จ้าง'}`)}
     <div style="margin-top:6px;">เรียน&nbsp;&nbsp; ผู้อำนวยการโรงเรียน${sn}</div>
-    <p style="text-indent:2.5em;margin-top:5px;line-height:1.7;">ตามที่ ผู้อำนวยการโรงเรียน${sn} เห็นชอบรายงาน${isBuy ? 'ขอซื้อ' : 'ขอจ้าง'} ${FD(100,esc(req.project_name||''))} เป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)}) ตามระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 24 รายละเอียดดังแนบ</p>
+    <p style="text-indent:2.5em;margin-top:5px;line-height:1.7;">ตามที่ ผู้อำนวยการโรงเรียน${sn} เห็นชอบรายงาน${isBuy ? 'ขอซื้อ' : 'ขอจ้าง'} ${FD(100,esc(pn))} เป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)}) ตามระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 24 รายละเอียดดังแนบ</p>
     <p style="text-indent:2.5em;margin-top:4px;line-height:1.7;">ในการนี้ เจ้าหน้าที่ได้เจรจาตกลงราคา กับ ${FD(100,esc(req.vendor_name||''))} ซึ่งมีอาชีพ${isBuy ? 'ขายพัสดุ' : 'รับจ้างทำพัสดุ'}ดังกล่าวแล้ว ปรากฏว่าเสนอราคาเป็นเงิน ${FD(0,total)} บาท (${FD(0,totalText)}) ดังนั้นเพื่อให้เป็นไปตามระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้าง และการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 79 จึงเห็นควร${docTypeName}จากผู้เสนอราคารายดังกล่าว</p>
     <div style="margin-top:5px;">จึงเรียนมาเพื่อโปรดทราบ และพิจารณา</div>
     <table style="width:100%;border-collapse:collapse;margin-top:2px;font-size:15px;line-height:1.7;">
-      <tr><td style="width:24px;vertical-align:top;">1.</td><td>อนุมัติให้สั่ง${isBuy ? 'ซื้อ' : 'จ้าง'} ${FD(80,esc(req.project_name||''))} จาก ${isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง'} ${FD(80,esc(req.vendor_name||''))} เป็น${isBuy ? 'ผู้ขาย' : 'ผู้รับจ้าง'} ในวงเงิน ${FD(0,total)} บาท (${FD(0,totalText)}) กำหนดเวลาการส่งมอบภายใน ${FD(0,deliveryDays)} วัน นับถัดจากวันลงนามในสัญญา</td></tr>
+      <tr><td style="width:24px;vertical-align:top;">1.</td><td>อนุมัติให้สั่ง${isBuy ? 'ซื้อ' : 'จ้าง'} ${FD(80,esc(pn))} จาก ${isBuy ? 'ร้าน/หจก./บริษัท' : 'ผู้รับจ้าง'} ${FD(80,esc(req.vendor_name||''))} เป็น${isBuy ? 'ผู้ขาย' : 'ผู้รับจ้าง'} ในวงเงิน ${FD(0,total)} บาท (${FD(0,totalText)}) กำหนดเวลาการส่งมอบภายใน ${FD(0,deliveryDays)} วัน นับถัดจากวันลงนามในสัญญา</td></tr>
     </table>
     <div style="page-break-inside:avoid;break-inside:avoid;">
       <div style="padding-top:20mm;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
