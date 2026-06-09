@@ -386,6 +386,7 @@ async function initApp() {
 async function afterLogin() {
   const u = App.user;
   if (!u) return;
+  await loadProjects();  // โหลด dropdown โครงการทุก role
   if (u.role === 'inspector') {
     showView('Inspector');
     await loadInspectorList(); // badge updated inside
@@ -414,6 +415,131 @@ function bindSchoolToUI() {
     const suffix = id.replace('school','');
     if ($(id)) $(id).textContent = p[map[suffix]||''] || '-';
   });
+}
+
+// ── Projects ─────────────────────────────────────────────────
+let _cachedProjects = [];
+
+async function loadProjects() {
+  try {
+    const res = await api('getProjects', {}, 'GET');
+    _cachedProjects = res.projects || [];
+    populateProjectDropdowns();
+  } catch(e) { console.warn('loadProjects:', e.message); }
+}
+
+function populateProjectDropdowns() {
+  const opts = '<option value="">-- เลือกโครงการ --</option>' +
+    _cachedProjects.map(p => `<option value="${escHtml(p.project_name)}">${escHtml(p.project_name)}</option>`).join('');
+  ['reqProject','inspEditProject'].forEach(function(id) {
+    const el = $(id); if (!el) return;
+    const cur = el.value;
+    el.innerHTML = opts;
+    if (cur) el.value = cur;
+  });
+}
+
+async function loadProjectList() {
+  const el = $('projectListBody'); if (!el) return;
+  el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:16px;">กำลังโหลด...</td></tr>';
+  try {
+    const res = await api('getProjects', { include_inactive: true }, 'GET');
+    const rows = res.projects || [];
+    if (!rows.length) { el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:24px;">ยังไม่มีโครงการ</td></tr>'; return; }
+    el.innerHTML = rows.map(p => `<tr>
+      <td style="font-size:12px;color:#94a3b8;">${escHtml(p.project_id||'')}</td>
+      <td style="font-weight:600;">${escHtml(p.project_name||'')}</td>
+      <td style="color:#64748b;">${escHtml(p.budget_source||'-')}</td>
+      <td style="text-align:center;">${String(p.active)!=='false'
+        ? '<span style="font-size:11px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;">เปิด</span>'
+        : '<span style="font-size:11px;background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:999px;">ปิด</span>'}</td>
+      <td style="text-align:center;white-space:nowrap;">
+        <button class="btn-action" onclick='openProjectForm(${JSON.stringify(p)})'>✏️ แก้ไข</button>
+        <button class="btn-action" style="color:#dc2626;border-color:#fca5a5;" onclick="deleteProject('${escHtml(p.project_id||'')}','${escHtml(p.project_name||'')}')">🗑️ ลบ</button>
+      </td></tr>`).join('');
+  } catch(e) { el.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#ef4444;padding:16px;">${escHtml(e.message)}</td></tr>`; }
+}
+
+function openProjectForm(p) {
+  show('projectFormCard');
+  if (p && typeof p === 'object') {
+    $('projectFormTitle').textContent = 'แก้ไขโครงการ';
+    $('projectId').value = p.project_id || '';
+    $('projectName').value = p.project_name || '';
+    $('projectBudgetSource').value = p.budget_source || '';
+    $('projectActive').value = String(p.active) !== 'false' ? 'true' : 'false';
+  } else {
+    $('projectFormTitle').textContent = 'เพิ่มโครงการ';
+    ['projectId','projectName','projectBudgetSource'].forEach(id => { if ($(id)) $(id).value = ''; });
+    if ($('projectActive')) $('projectActive').value = 'true';
+  }
+  $('projectName')?.focus();
+}
+
+// ── รีเซ็ตเลขที่ ซ./จ. ──────────────────────────────────────
+async function confirmResetPoNo() {
+  const type    = $('resetPoType')?.value || 'both';
+  const startNo = Number($('resetPoStartNo')?.value || 1);
+  const typeLabel = type === 'buy' ? 'จัดซื้อ (ซ.)' : type === 'hire' ? 'จัดจ้าง (จ.)' : 'ทั้งหมด (ซ. และ จ.)';
+  if (!confirm(`รีเซ็ตเลขที่ ${typeLabel} ให้เริ่มนับจาก ${startNo} ใช่ไหม?\n\n⚠️ เลขที่ที่เคยออกไปแล้วจะไม่ถูกลบ แต่เลขถัดไปจะเริ่มจากค่าใหม่`)) return;
+  setLoading(true, 'กำลังรีเซ็ต...');
+  const el = $('resetPoResult');
+  try {
+    const res = await api('resetPoRunning', {
+      type, start_no: startNo, caller_role: App.user?.role || ''
+    }, 'POST');
+    if (!res.ok) throw new Error(res.message);
+    if (el) {
+      el.style.display = '';
+      el.style.background = '#dcfce7';
+      el.style.color = '#166534';
+      el.textContent = '✅ ' + res.message;
+    }
+    toast(res.message, 'success');
+  } catch(e) {
+    if (el) {
+      el.style.display = '';
+      el.style.background = '#fee2e2';
+      el.style.color = '#991b1b';
+      el.textContent = '❌ ' + e.message;
+    }
+    toast(e.message, 'error');
+  }
+  finally { setLoading(false); }
+}
+
+async function saveProject() {
+  const name = ($('projectName')?.value||'').trim();
+  if (!name) { toast('กรุณาระบุชื่อโครงการ','error'); return; }
+  setLoading(true,'กำลังบันทึก...');
+  try {
+    const res = await api('saveProject', {
+      project_id:    $('projectId')?.value || '',
+      project_name:  name,
+      budget_source: $('projectBudgetSource')?.value || '',
+      active:        $('projectActive')?.value !== 'false',
+      caller_role:   App.user?.role || ''
+    }, 'POST');
+    if (!res.ok) throw new Error(res.message);
+    toast(res.message, 'success');
+    hide('projectFormCard');
+    await loadProjectList();
+    await loadProjects();
+  } catch(e) { toast(e.message,'error'); }
+  finally { setLoading(false); }
+}
+
+async function deleteProject(id, name) {
+  if (!confirm('ลบโครงการ "' + name + '" ?\nรายการจัดซื้อที่ใช้โครงการนี้จะไม่ได้รับผลกระทบ')) return;
+  setLoading(true,'กำลังลบ...');
+  try {
+    const res = await api('deleteProject', { project_id: id, caller_role: App.user?.role || '' }, 'POST');
+    if (!res.ok) throw new Error(res.message);
+    toast(res.message,'success');
+    await loadProjectList();
+    await loadProjects();
+  } catch(e) { toast(e.message,'error'); }
+  finally { setLoading(false); }
 }
 
 // ── Public dashboard ──────────────────────────────────────────
@@ -681,6 +807,7 @@ function prepareTeacherForm() {
   }
   setVal('reqDocNo','');
   setVal('reqProject','');
+  setVal('reqPurchaseName','');
   setVal('reqReason','');
   setVal('reqBudgetSource','');
   setVal('reqActivity','');
@@ -766,17 +893,19 @@ async function openRequest(id) {
 }
 
 function bindReqToForm(req, items) {
-  const fields = ['request_id','request_date','teacher_name','department','project_name','reason',
+  const fields = ['request_id','request_date','teacher_name','department','project_name','purchase_name','reason',
     'objective','item_detail','budget_source','activity_name',
     'vendor_name','vendor_address','vendor_tax_id','vendor_phone',
     'vendor_bank_account','vendor_bank_name','vendor_bank_bank_name','vendor_bank_branch',
     'delivery_days','status','doc_no','quote_no','quote_date','po_no'];
-  const ids    = ['reqId','reqDate','reqTeacher','reqDept','reqProject','reqReason',
+  const ids    = ['reqId','reqDate','reqTeacher','reqDept','reqProject','reqPurchaseName','reqReason',
     'reqObjective','reqItemDetail','reqBudgetSource','reqActivity',
     'reqVendor','reqVendorAddr','reqVendorTax','reqVendorPhone',
     'reqVendorBankAccount','reqVendorBankName','reqVendorBankBankName','reqVendorBankBranch',
     'reqDelivery','reqStatus','reqDocNo','reqQuoteNo','reqQuoteDate','reqPoNo'];
   fields.forEach((f,i) => setVal(ids[i], req[f]||''));
+  populateProjectDropdowns();
+  if ($('reqProject') && req.project_name) $('reqProject').value = req.project_name||'';
   if ($('reqProcType')) $('reqProcType').value = req.proc_type || 'จัดซื้อ';
   setVal('reqScopeOfWork', req.scope_of_work || '');
   const isHire = (req.proc_type || 'จัดซื้อ') === 'จัดจ้าง';
@@ -870,6 +999,7 @@ async function saveRequestForm() {
     teacher_name:  val('reqTeacher'),
     department:    val('reqDept'),
     project_name:  val('reqProject'),
+    purchase_name: val('reqPurchaseName'),
     reason:        val('reqReason'),
     budget_source: val('reqBudgetSource'),
     activity_name: val('reqActivity'),
@@ -1177,6 +1307,9 @@ async function openInspectForm(id) {
     const inspPoBtn  = $('btnInspEditPoNo');  if (inspPoBtn)  inspPoBtn.textContent='🔒 แก้ไข';
     setVal('inspEditPoNo', req.po_no||'');
     setVal('inspEditProject',     req.project_name||'');
+    setVal('inspEditPurchaseName', req.purchase_name||'');
+    populateProjectDropdowns();
+    if ($('inspEditProject') && req.project_name) $('inspEditProject').value = req.project_name||'';
     setVal('inspEditDelivery',    req.delivery_days||'7');
     setVal('inspEditObjective',   req.objective||req.scope_of_work||'');
     setVal('inspEditReason',      req.reason||'');
@@ -1315,6 +1448,7 @@ async function saveInspectEdit() {
     department:     val('inspEditDept')                  || req.department,
     doc_no:         val('inspEditDocNo')                 || req.doc_no,
     project_name:   val('inspEditProject')               || req.project_name,
+    purchase_name:  val('inspEditPurchaseName')            || req.purchase_name,
     delivery_days:  val('inspEditDelivery')              || req.delivery_days,
     objective:      val('inspEditObjective')             || req.objective,
     item_detail:    val('inspEditItemDetail')            || req.item_detail,
