@@ -783,7 +783,11 @@ tbody tr:last-child td{border-bottom:none;}
               <div class="field f6"><label>ชื่อผู้ขอซื้อ</label><input id="reqTeacher" class="input" type="text"></div>
               <div class="field f6"><label>ฝ่าย / งาน</label><input id="reqDept" class="input" type="text"></div>
               <div class="field f4"><label>เลขที่หนังสือ (ที่ ศธ.)</label><input id="reqDocNo" class="input" type="text" placeholder="เช่น 04234/125"></div>
-              <div class="field f8"><label>ชื่อโครงการ / งานจัดซื้อ</label><input id="reqProject" class="input" type="text" placeholder="เช่น จัดซื้อวัสดุสำนักงาน"></div>
+              <div class="field f4">
+                <label>ชื่อโครงการ</label>
+                <select id="reqProject" class="select"><option value="">-- เลือกโครงการ --</option></select>
+              </div>
+              <div class="field f8"><label>งานจัดซื้อ/จ้าง <span style="color:#94a3b8;font-size:11px;">เช่น ซื้ออุปกรณ์การเกษตร / จ้างซ่อมอาคาร</span></label><input id="reqPurchaseName" class="input" type="text" placeholder="เช่น ซื้ออุปกรณ์การเกษตร"></div>
               <div class="field f12"><label>วัตถุประสงค์ (เพื่อ...)</label><input id="reqObjective" class="input" type="text" placeholder="เช่น เพื่อใช้ในการดำเนินงานของโรงเรียน"></div>
               <div class="field f12"><label>เหตุผลและความจำเป็นที่ต้องซื้อ/จ้าง (ข้อ 1)</label><textarea id="reqReason" class="textarea" placeholder="อธิบายเหตุผลและความจำเป็น"></textarea></div>
               <div class="field f12"><label>รายละเอียดสิ่งที่จะซื้อ/จ้าง (ข้อ 2)</label><textarea id="reqItemDetail" class="textarea" placeholder="อธิบายรายละเอียดของสิ่งที่จะซื้อหรืองานที่จะจ้าง"></textarea></div>
@@ -980,7 +984,11 @@ tbody tr:last-child td{border-bottom:none;}
                 <!-- กลุ่ม 2: โครงการ -->
                 <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;">โครงการ</div>
                 <div class="form-grid">
-                  <div class="field f8"><label>ชื่อโครงการ / งานจัดซื้อ</label><input id="inspEditProject" class="input" type="text" placeholder="ชื่อโครงการ"></div>
+                  <div class="field f4">
+                    <label>ชื่อโครงการ</label>
+                    <select id="inspEditProject" class="select"><option value="">-- เลือกโครงการ --</option></select>
+                  </div>
+                  <div class="field f8"><label>งานจัดซื้อ/จ้าง <span style="color:#94a3b8;font-size:11px;">เช่น ซื้ออุปกรณ์การเกษตร / จ้างซ่อมอาคาร</span></label><input id="inspEditPurchaseName" class="input" type="text" placeholder="เช่น ซื้ออุปกรณ์การเกษตร"></div>
                   <div class="field f2"><label>กำหนดส่ง (วัน)</label><input id="inspEditDelivery" class="input" type="number" min="1"></div>
                   <div class="field f2"><label>&nbsp;</label><div style="height:38px;"></div></div>
                   <div class="field f12"><label>วัตถุประสงค์ (เพื่อ...)</label><input id="inspEditObjective" class="input" type="text" placeholder="เช่น เพื่อใช้ในการดำเนินงานของโรงเรียน"></div>
@@ -1089,6 +1097,7 @@ tbody tr:last-child td{border-bottom:none;}
           <button class="nav-tab" onclick="switchAdminTab('tabAdminDashboard',this)">📊 สถิติภาพรวม</button>
           <button class="nav-tab" onclick="switchAdminTab('tabAdminSettings',this)">⚙️ ตั้งค่าระบบ</button>
           <button class="nav-tab" onclick="switchAdminTab('tabAdminUsers',this);loadUserList();">👥 จัดการผู้ใช้</button>
+          <button class="nav-tab" onclick="switchAdminTab('tabAdminProjects',this);loadProjectList();">📁 โครงการ</button>
         </div>
 
         <!-- Tab: รายการ -->
@@ -1180,6 +1189,30 @@ tbody tr:last-child td{border-bottom:none;}
           <div style="margin-top:16px;">
             <button id="btnSaveSettings" class="btn btn-primary">💾 บันทึกตั้งค่าทั้งหมด</button>
           </div>
+
+          <!-- รีเซ็ตเลขที่ -->
+          <div class="card card-body" style="margin-top:16px;border:1px solid #fca5a5;background:#fff7f7;">
+            <div class="card-title" style="color:#dc2626;margin-bottom:4px;">⚠️ รีเซ็ตเลขที่ใบสั่งซื้อ/จ้าง</div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:14px;">ใช้เมื่อต้องการเริ่มนับเลขใหม่ เช่น ต้นปีงบประมาณ หรือแก้ไขเลขที่ผิดพลาด เลขถัดไปจะเริ่มจากค่าที่ตั้งไว้</div>
+            <div class="form-grid">
+              <div class="field f4">
+                <label>ประเภทที่จะรีเซ็ต</label>
+                <select id="resetPoType" class="select">
+                  <option value="both">ทั้งหมด (ซ. และ จ.)</option>
+                  <option value="buy">จัดซื้อ (ซ.) เท่านั้น</option>
+                  <option value="hire">จัดจ้าง (จ.) เท่านั้น</option>
+                </select>
+              </div>
+              <div class="field f3">
+                <label>เริ่มนับจากเลขที่</label>
+                <input id="resetPoStartNo" class="input" type="number" min="1" value="1" style="border-color:#fca5a5;">
+              </div>
+              <div class="field f5" style="display:flex;align-items:flex-end;">
+                <button class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;" onclick="confirmResetPoNo()">🔄 รีเซ็ตเลขที่</button>
+              </div>
+            </div>
+            <div id="resetPoResult" style="display:none;margin-top:10px;font-size:13px;padding:8px 12px;border-radius:8px;"></div>
+          </div>
         </div>
 
         <!-- Tab: จัดการผู้ใช้ -->
@@ -1199,6 +1232,38 @@ tbody tr:last-child td{border-bottom:none;}
             </table>
           </div></div>
         </div>
+
+        <!-- ── tab โครงการ ── -->
+        <div id="tabAdminProjects" class="tab-pane">
+          <div class="section-hd" style="margin-bottom:14px;">
+            <span class="section-title">จัดการโครงการ</span>
+            <button class="btn btn-primary btn-sm" onclick="openProjectForm()">+ เพิ่มโครงการ</button>
+          </div>
+          <div class="card"><div class="tbl-wrap">
+            <table style="min-width:520px;">
+              <thead><tr><th>รหัส</th><th>ชื่อโครงการ</th><th>แหล่งงบ</th><th style="text-align:center;">สถานะ</th><th style="text-align:center;">จัดการ</th></tr></thead>
+              <tbody id="projectListBody"><tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:24px;">กำลังโหลด...</td></tr></tbody>
+            </table>
+          </div></div>
+          <div id="projectFormCard" class="card" style="display:none;margin-top:12px;">
+            <div style="padding:16px 20px 0;"><div class="card-title" id="projectFormTitle">เพิ่มโครงการ</div></div>
+            <div style="padding:14px 20px 20px;display:flex;flex-direction:column;gap:10px;">
+              <input type="hidden" id="projectId">
+              <div class="form-grid">
+                <div class="field f8"><label>ชื่อโครงการ <span style="color:#ef4444;">*</span></label><input id="projectName" class="input" type="text" placeholder="เช่น งบดำเนินงาน"></div>
+                <div class="field f4"><label>แหล่งงบประมาณ</label><input id="projectBudgetSource" class="input" type="text" placeholder="เช่น งบดำเนินงาน"></div>
+                <div class="field f4">
+                  <label>สถานะ</label>
+                  <select id="projectActive" class="select"><option value="true">เปิดใช้งาน</option><option value="false">ปิดใช้งาน</option></select>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                <button class="btn btn-primary btn-sm" onclick="saveProject()">💾 บันทึก</button>
+                <button class="btn btn-ghost btn-sm" onclick="hide('projectFormCard')">ยกเลิก</button>
+              </div>
+            </div>
+          </div>
+        </div><!-- end tabAdminProjects -->
 
       </div><!-- /viewAdmin inner tabs -->
       </div><!-- /viewAdmin -->
