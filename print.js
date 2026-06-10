@@ -566,7 +566,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       <div style="text-align:center;">
         <div>ลงชื่อ ${FL(200,'')} ${isBuy ? 'ผู้สั่งซื้อ' : 'ผู้สั่งจ้าง'}</div>
         <div>(${dirName})</div>
-        <div>ตำแหน่ง ${dirPos}${sn}</div>
+        <div>ตำแหน่ง ${dirPos}</div>
         <div style="font-size:13px;margin-top:3px;">วันที่ ${reqDate}</div>
       </div>
       <div style="text-align:center;">
