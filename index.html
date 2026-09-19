@@ -2464,6 +2464,30 @@ async function continueInspection(id) {
   finally { setLoading(false); }
 }
 
+// Calendar dates stay unchanged; timestamps use Thailand's calendar day.
+function displayThaiDate(value) {
+  const text=String(value||'').trim();
+  if(!text)return '-';
+  let year,month,day;
+  if(/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)) {
+    const date=new Date(text);
+    if(Number.isNaN(date.getTime()))return '-';
+    const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+    const part=name=>parts.find(p=>p.type===name).value;
+    year=Number(part('year'));month=Number(part('month'));day=Number(part('day'));
+  } else {
+    const iso=text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[ T])/);
+    const local=text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if(iso){year=Number(iso[1]);month=Number(iso[2]);day=Number(iso[3]);}
+    else if(local){day=Number(local[1]);month=Number(local[2]);year=Number(local[3]);}
+    else return '-';
+  }
+  const ceYear=year>=2400?year-543:year;
+  const check=new Date(Date.UTC(ceYear,month-1,day));
+  if(check.getUTCFullYear()!==ceYear||check.getUTCMonth()!==month-1||check.getUTCDate()!==day)return '-';
+  return String(day).padStart(2,'0')+'-'+String(month).padStart(2,'0')+'-'+(ceYear+543);
+}
+
 // ── DOM helpers ───────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const show = el => { const e = typeof el==='string'?$(el):el; if(e) e.style.display=''; };
@@ -3318,7 +3342,7 @@ function renderMyRequests(rows) {
     <tr>
       <td style="font-size:13px;font-weight:600;color:#2563eb;">${escHtml(r.request_id||'')}</td>
       <td>${typeChip(r.proc_type||'จัดซื้อ')}</td>
-      <td style="font-size:13px;color:#64748b;">${escHtml((r.request_date||r.created_at||'').split(' ')[0])}</td>
+      <td style="font-size:13px;color:#64748b;">${displayThaiDate(r.request_date||r.created_at)}</td>
       <td>${escHtml(r.project_name||'')}</td>
       <td style="text-align:right;">${fmtMoney(r.total_amount)}</td>
       <td>${escHtml(r.vendor_name||'-')}</td>
@@ -3716,7 +3740,7 @@ function renderInspectorList(rows) {
       <td style="font-size:13px;font-weight:600;color:#2563eb;">${escHtml(r.request_id||'')}</td>
       <td>${typeChipInsp(r.proc_type||'จัดซื้อ')}</td>
       <td style="font-size:13px;font-weight:600;color:#7c3aed;">${escHtml(r.po_no||'-')}</td>
-      <td style="font-size:13px;color:#64748b;">${escHtml((r.request_date||r.created_at||'').split(' ')[0])}</td>
+      <td style="font-size:13px;color:#64748b;">${displayThaiDate(r.request_date||r.created_at)}</td>
       <td>${escHtml(r.teacher_name||'')}</td>
       <td>${escHtml(r.project_name||'')}</td>
       <td style="text-align:right;">${fmtMoney(r.total_amount)}</td>
@@ -4063,7 +4087,7 @@ function renderAdminList(rows) {
   el.innerHTML = filtered.map(r=>`
     <tr>
       <td style="font-size:13px;font-weight:600;color:#2563eb;">${escHtml(r.request_id||'')}</td>
-      <td style="font-size:13px;color:#64748b;">${escHtml((r.request_date||r.created_at||'').split(' ')[0])}</td>
+      <td style="font-size:13px;color:#64748b;">${displayThaiDate(r.request_date||r.created_at)}</td>
       <td>${escHtml(r.teacher_name||'')}</td>
       <td>${escHtml(r.project_name||'')}</td>
       <td style="text-align:right;">${fmtMoney(r.total_amount)}</td>
