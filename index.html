@@ -4187,7 +4187,7 @@ function renderUserList(users) {
       <td style="text-align:center;"><span style="font-size:12px;${u.active?'color:#16a34a':'color:#dc2626'}">${u.deleted?'ลบแล้ว':u.active?'✅ ใช้งาน':'⛔ ระงับ'}</span></td>
       <td style="text-align:center;white-space:nowrap;">
         ${u.deleted ? '' : `<button class="btn-action" onclick="openUserModal(_allUsers.find(u => u.user_id === this.dataset.id))" data-id="${escHtml(u.user_id)}">แก้ไข</button>`}
-        <button class="btn-action" style="color:${u.deleted?'#2563eb':'#dc2626'};" data-id="${escHtml(u.user_id)}" onclick="archiveListedTeacher(this.dataset.id)">${u.deleted?'กู้คืน':'ลบรายชื่อ'}</button>
+        <button class="btn-action" style="color:#dc2626;" data-id="${escHtml(u.user_id)}" onclick="archiveListedTeacher(this.dataset.id)">ลบจากชีท</button>
         ${u.active ? `<button class="btn-action" style="color:#dc2626;" data-id="${escHtml(u.user_id)}" onclick="deactivateListedUser(this.dataset.id)">ปิดใช้งาน</button>` : ''}
       </td>
     </tr>`).join('');
@@ -4267,11 +4267,11 @@ function deactivateListedUser(id) {
 
 async function archiveListedTeacher(id){
   const u=_allUsers.find(x=>String(x.user_id)===String(id));if(!u)return;
-  const message=u.deleted?'กู้คืนรายชื่อ "'+u.full_name+'"? รายชื่อจะอยู่ในสถานะระงับก่อน':'ลบรายชื่อ "'+u.full_name+'"? รายการซื้อ/จ้างย้อนหลังยังคงอยู่ และกู้คืนได้';
+  const message='ลบรายชื่อ "'+u.full_name+'" ออกจากชีทของโรงเรียนนี้หรือไม่? ไม่สามารถกู้คืนจากหน้านี้ได้ รายการซื้อ/จ้างย้อนหลังและชื่อผู้ขอในเอกสารเดิมยังคงอยู่';
   const agreed=typeof centralConfirm==='function'?await centralConfirm(message):confirm(message);
   if(!agreed)return;
   setLoading(true,'กำลังบันทึก...');
-  try{const r=await api('deleteUser',{user_id:id,caller_id:App.user.user_id,mode:u.deleted?'restore':'archive'},'POST');if(!r.ok)throw new Error(r.message);toast(r.message,'success');await loadUserList();await loadRequesters();}
+  try{const r=await api('deleteUser',{user_id:id,caller_id:App.user.user_id,mode:'delete'},'POST');if(!r.ok)throw new Error(r.message);toast(r.message,'success');await loadUserList();await loadRequesters();}
   catch(e){toast(e.message,'error');}finally{setLoading(false);}
 }
 
