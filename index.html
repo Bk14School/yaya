@@ -611,6 +611,7 @@ tbody tr:last-child td{border-bottom:none;}
         </section>
       </div>
       <div id="viewPublic" class="view active"><div class="card" style="padding:16px;margin-bottom:16px;"><label for="dashboardScope">สรุปยอด: </label><select id="dashboardScope" class="select" style="max-width:240px;" onchange="centralDashboardScope=this.value;loadPublicDashboard()"><option value="year">ปีงบประมาณที่เลือก</option><option value="all">สะสมทุกปี</option></select><p>ยอดสรุปและกราฟตามฝ่าย/เดือนใช้ช่วงที่เลือก ส่วนรายการล่าสุด รายการค้าง และอันดับร้านค้าแสดงปีที่กำลังใช้งาน</p></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button id="btnPrintDashboard" class="btn btn-primary" onclick="printDashboard()" disabled>🖨️ พิมพ์ภาพรวม</button></div>
 
         <div class="school-bar">
           <div>
@@ -3026,7 +3027,10 @@ async function deleteProject(id, name) {
 }
 
 // ── Public dashboard ──────────────────────────────────────────
+let dashboardReady=false;
 async function loadPublicDashboard() {
+  dashboardReady=false;
+  if($('btnPrintDashboard'))$('btnPrintDashboard').disabled=true;
   setLoading(true, 'กำลังโหลดข้อมูล...');
   try {
     const res = await api('getDashboard');
@@ -3038,6 +3042,8 @@ async function loadPublicDashboard() {
     renderTopVendors(res.top_vendors||[]);
     renderPendingAlerts(res.pending_alerts||[]);
     renderMonthlyChart(res.monthly||[]);
+    dashboardReady=true;
+    if($('btnPrintDashboard'))$('btnPrintDashboard').disabled=false;
   } catch(e){
     const message='โหลดข้อมูลไม่สำเร็จ: '+(e.message||'กรุณาลองใหม่');
     ['deptTableBody','recentTableBody'].forEach(id=>{if($(id))$(id).innerHTML='<tr><td colspan="8">'+escHtml(message)+'</td></tr>';});
@@ -3045,6 +3051,24 @@ async function loadPublicDashboard() {
     toast(message,'error',8000);
   }
   finally { setLoading(false); }
+}
+
+async function printDashboard(){
+  if(!dashboardReady){toast('กรุณารอให้ข้อมูลภาพรวมโหลดเสร็จก่อนพิมพ์','info');return;}
+  // Finish the short count/chart animations before capturing the report.
+  await new Promise(resolve=>setTimeout(resolve,1000));
+  if(!dashboardReady)return;
+  const source=$('viewPublic'),copy=source.cloneNode(true);
+  const canvases=source.querySelectorAll('canvas');
+  copy.querySelectorAll('canvas').forEach((canvas,i)=>{
+    const image=document.createElement('img');image.src=canvases[i].toDataURL('image/png');
+    image.style.cssText='width:100%;height:100%;object-fit:contain';image.alt='กราฟสรุปค่าใช้จ่าย';canvas.replaceWith(image);
+  });
+  copy.querySelectorAll('select').forEach(select=>{const live=source.querySelector('#'+select.id);select.replaceWith(document.createTextNode(live?.selectedOptions[0]?.textContent||''));});
+  copy.querySelectorAll('button').forEach(button=>button.remove());
+  copy.querySelectorAll('[style]').forEach(el=>{el.style.maxHeight='none';if(el.style.overflowY)el.style.overflowY='visible';});
+  const styles=Array.from(document.querySelectorAll('style')).map(el=>el.textContent).join('\n');
+  openPrintPreview('<!doctype html><html lang="th"><head><meta charset="utf-8"><title>รายงานภาพรวมระบบ</title><style>'+styles+'\n@page{size:A4 portrait;margin:12mm}body{background:white!important;font-size:12px!important}#viewPublic{display:block!important}.stats-row{display:grid!important;grid-template-columns:repeat(4,1fr)!important}.dash-grid,.dash-grid-3{display:block!important}.card{box-shadow:none!important;margin-bottom:12px}.stat-card,.school-bar,.pipeline-wrap,.recent-item,.dept-row{break-inside:avoid}.stat-val{font-size:17px!important}.donut-wrap{flex-direction:row!important}.card:has(canvas),.card:has(img){break-inside:avoid}#pendingAlertList{max-height:none!important;overflow:visible!important}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}h1{font-size:20px;margin-bottom:8px}</style></head><body><h1>รายงานภาพรวมระบบ</h1><p>ปีงบประมาณ '+escHtml($('topFiscalYear').textContent.replace('ปีงบประมาณ ',''))+' · พิมพ์วันที่ '+displayThaiDate(new Date().toISOString())+'</p>'+copy.outerHTML+'</body></html>');
 }
 
 function renderProcTypeStat(stat) {
@@ -3723,6 +3747,15 @@ async function loadInspectorList() {
   finally { setLoading(false); }
 }
 
+function comparePoNewest(a,b){
+  const parse=value=>{
+    const normalized=String(value||'').replace(/[๐-๙]/g,c=>String('๐๑๒๓๔๕๖๗๘๙'.indexOf(c)));
+    const m=normalized.match(/(?:ซ|จ)\.?\s*(\d+)\s*\/\s*(\d{4})/);
+    return m?[Number(m[2])<2400?Number(m[2])+543:Number(m[2]),Number(m[1])]:[0,0];
+  };
+  const x=parse(a.po_no),y=parse(b.po_no);
+  return y[0]-x[0]||y[1]-x[1]||String(b.request_id||'').localeCompare(String(a.request_id||''),undefined,{numeric:true});
+}
 function renderInspectorList(rows) {
   const el = $('inspectorListBody');
   if (!el) return;
@@ -3741,7 +3774,7 @@ function renderInspectorList(rows) {
     const matchT = !t || r.proc_type === t;
     const matchPo = !po || r.po_no === po;
     return matchQ && matchS && matchT && matchPo;
-  });
+  }).sort(comparePoNewest);
   if (!filtered.length) { el.innerHTML='<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:24px;">ไม่พบรายการ</td></tr>'; return; }
   const typeChipInsp = t => t === 'จัดจ้าง'
     ? '<span style="font-size:11px;background:#fef9c3;color:#854d0e;padding:2px 7px;border-radius:999px;font-weight:700;">🔧 จ้าง</span>'
