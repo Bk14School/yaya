@@ -2397,8 +2397,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     clearTimeout(job.timer);pending.delete(m.id);
     if(m.error)job.reject(new Error(m.error));else {
       if(m.result && !m.result.ok && /หมดเวลาการใช้งาน/.test(m.result.message||'')) {
-        authToken='';App.user=null;centralState=null;showView('Login');
-        $('authMessage').textContent='หมดเวลาการใช้งาน กรุณาเข้าสู่ระบบใหม่';
+        requireSessionRenewal(job.sessionToken);
       }
       job.resolve(m.result);
     }
@@ -2413,7 +2412,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     const id=String(++counter);
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{pending.delete(id);reject(new Error('ระบบตอบกลับช้า กรุณาตรวจสอบรายการก่อนบันทึกซ้ำ'));},120000);
-      pending.set(id,{resolve,reject,timer});
+      pending.set(id,{resolve,reject,timer,sessionToken:payload.session_token});
       peer.postMessage({kind:'request',channel,id,action,payload},peerOrigin);
     });
   };
@@ -3556,8 +3555,13 @@ async function saveRequestForm() {
     App.currentItems = items;
     toast('บันทึกเรียบร้อยแล้ว','success');
     fireConfetti();
-    await loadMyRequests();
-    if (isOperator()) await loadRequesters();
+    // A failed list refresh must not undo or misreport a confirmed save.
+    try {
+      await loadMyRequests();
+      if (App.user && isOperator()) await loadRequesters();
+    } catch(refreshError) {
+      toast('บันทึกแล้ว แต่โหลดรายการล่าสุดไม่สำเร็จ ข้อมูลในฟอร์มยังอยู่','info');
+    }
     return true;
   } catch(e){ toast(e.message,'error'); return false; }
   finally { setLoading(false); }
@@ -4429,6 +4433,41 @@ async function centralSaveMember(){if(await centralConfirm('ยืนยัน�
 async function centralToggleSchool(id){const s=centralRegistry.schools.find(s=>s.school_id===id);if(s && await centralConfirm('เปลี่ยนสถานะการใช้งาน '+s.school_name+'?'))centralMutation('centralSchoolStatus',{school_id:id,active:String(s.active)==='false'});}
 
 let authToken='', authBusy=false, authBound=false;
+let authResume=null,authUsername='';
+function requireSessionRenewal(expiredToken){
+  if(!expiredToken||expiredToken!==authToken||authResume)return;
+  if(!App.user||!centralState)return;
+  authResume={email:centralState.email,school_id:centralState.school_id,fiscal_year:centralState.fiscal_year,username:authUsername,schoolMode:centralSchoolMode};
+  authToken='';App.user=null;
+  const dialog=document.createElement('dialog');dialog.id='sessionRenewal';
+  dialog.style.cssText='margin:auto;padding:28px;border:1px solid #cbd5e1;border-radius:16px;width:min(440px,calc(100% - 32px));font-family:Sarabun,sans-serif;color:#1e293b;box-shadow:0 20px 60px #0f172a33';
+  dialog.innerHTML='<h2 style="font-size:20px">ยืนยันการเข้าใช้งานอีกครั้ง</h2><p style="margin:12px 0">สิทธิ์เข้าสู่ระบบหมดอายุ ข้อมูลที่กรอกยังอยู่ในหน้านี้ กรุณาเข้าสู่บัญชีเดิมเพื่อทำต่อ</p><form id="sessionRenewalForm"><label for="renewUsername">ชื่อผู้ใช้เดิม</label><input id="renewUsername" class="input" autocomplete="username" required><label for="renewPassword">รหัสผ่าน</label><input id="renewPassword" class="input" type="password" autocomplete="current-password" required><p id="renewError" role="alert" style="color:#b91c1c;margin:12px 0"></p><button class="btn btn-primary" type="submit">ยืนยันและกลับไปทำต่อ</button></form>';
+  dialog.oncancel=e=>e.preventDefault();document.body.append(dialog);
+  $('renewUsername').value=authUsername;
+  $('sessionRenewalForm').onsubmit=async e=>{
+    e.preventDefault();const button=e.target.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
+    $('renewError').textContent='กำลังยืนยันบัญชี...';
+    try{
+      const username=val('renewUsername').toLowerCase();
+      if(authResume.username&&username!==authResume.username)throw Error('กรุณาใช้บัญชีเดิมเพื่อกลับไปยังข้อมูลที่กำลังกรอก');
+      const r=await api('authLogin',{username,password:$('renewPassword').value});$('renewPassword').value='';
+      if(!r.ok)throw Error(r.message);
+      await restoreSession(r.token);
+      dialog.close();dialog.remove();toast('ยืนยันบัญชีแล้ว ข้อมูลเดิมยังอยู่ สามารถทำงานต่อได้','success');
+    }catch(err){$('renewError').textContent=err.message;}finally{button.disabled=false;}
+  };
+  dialog.showModal();$('renewPassword').focus();
+}
+async function restoreSession(token){
+  const saved=authResume;if(!saved)throw Error('ไม่พบข้อมูลการเข้าใช้งานเดิม');
+  const fresh=await api('centralContext',{session_token:token,school_id:saved.school_id,fiscal_year:saved.fiscal_year});
+  if(!fresh.ok||fresh.email!==saved.email||fresh.school_id!==saved.school_id||String(fresh.fiscal_year)!==String(saved.fiscal_year)){
+    await api('authLogout',{session_token:token});throw Error(fresh.message||'บัญชีนี้ไม่มีสิทธิ์กลับไปยังข้อมูลเดิม');
+  }
+  authToken=token;centralState=fresh;App.user=fresh.user;centralSchoolMode=saved.schoolMode;authResume=null;
+  // Keep the existing fields, line items, current request and import code untouched.
+  updateTopbar();
+}
 function togglePasswordVisibility(button){
   const input=$(button.getAttribute('aria-controls'));
   if(!input)return;
@@ -4478,7 +4517,7 @@ async function passwordLogin(){
   try{
     const p={username:val('accountUsername'),password:$('accountPassword').value};
     const r=await passwordSubmit('authLogin',p,'authMessage');$('accountPassword').value='';
-    if(r){authToken=r.token;await initApp();}
+    if(r){authUsername=p.username.trim().toLowerCase();authToken=r.token;await initApp();}
   }catch(e){$('authMessage').textContent=e.message||'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่';}
   finally{
     loginPending=false;setLoading(false);
