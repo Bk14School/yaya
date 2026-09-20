@@ -2394,7 +2394,13 @@ function buildPurchasePrintHtml(req, items, settings, school) {
     if(event.source!==peer||event.origin!==peerOrigin||m.kind!=='response')return;
     const job=pending.get(m.id);if(!job)return;
     clearTimeout(job.timer);pending.delete(m.id);
-    if(m.error)job.reject(new Error(m.error));else job.resolve(m.result);
+    if(m.error)job.reject(new Error(m.error));else {
+      if(m.result && !m.result.ok && /หมดเวลาการใช้งาน/.test(m.result.message||'')) {
+        authToken='';App.user=null;centralState=null;showView('Login');
+        $('authMessage').textContent='หมดเวลาการใช้งาน กรุณาเข้าสู่ระบบใหม่';
+      }
+      job.resolve(m.result);
+    }
   });
   function mount(){
     const frame=document.createElement('iframe');frame.title='การเชื่อมต่อข้อมูล';frame.hidden=true;frame.setAttribute('aria-hidden','true');
@@ -3024,7 +3030,7 @@ async function loadPublicDashboard() {
   setLoading(true, 'กำลังโหลดข้อมูล...');
   try {
     const res = await api('getDashboard');
-    if (!res.ok) return;
+    if (!res.ok) throw new Error(res.message||'โหลดข้อมูลภาพรวมไม่สำเร็จ');
     renderSummaryCards(res.summary||{}, res.status_count||{});
     renderDeptTable(res.departments||[]);
     renderRecentTable(res.recent_requests||[]);
@@ -3032,7 +3038,12 @@ async function loadPublicDashboard() {
     renderTopVendors(res.top_vendors||[]);
     renderPendingAlerts(res.pending_alerts||[]);
     renderMonthlyChart(res.monthly||[]);
-  } catch(e){ console.error(e); }
+  } catch(e){
+    const message='โหลดข้อมูลไม่สำเร็จ: '+(e.message||'กรุณาลองใหม่');
+    ['deptTableBody','recentTableBody'].forEach(id=>{if($(id))$(id).innerHTML='<tr><td colspan="8">'+escHtml(message)+'</td></tr>';});
+    ['topVendorList','pendingAlertList','deptBarList','recentList','deptLegend'].forEach(id=>{if($(id))$(id).textContent=message;});
+    toast(message,'error',8000);
+  }
   finally { setLoading(false); }
 }
 
