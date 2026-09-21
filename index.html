@@ -1365,6 +1365,7 @@ function switchAdminTab(tabId, btn) {
   document.querySelectorAll('#viewAdmin .nav-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById(tabId)?.classList.add('active');
   btn?.classList.add('active');
+  if (tabId === 'tabAdminDashboard') loadAdminDashboard();
 }
 
 /* ════════════════════════════════════════
@@ -1382,7 +1383,7 @@ function navTo(viewName, tabId) {
       switchAdminTab(tabId, btn);
     }
   }
-  if (viewName === 'Admin' && typeof loadAdminList === 'function') loadAdminList();
+  if (viewName === 'Admin' && (!tabId || tabId === 'tabAdminList') && typeof loadAdminList === 'function') loadAdminList();
   if (viewName === 'Inspector' && typeof loadInspectorList === 'function') loadInspectorList();
   if (viewName === 'Teacher' && tabId === 'tabMyReq' && typeof loadMyRequests === 'function') loadMyRequests();
   if (viewName === 'Public' && typeof loadPublicDashboard === 'function') loadPublicDashboard();
@@ -2867,23 +2868,17 @@ async function afterLogin() {
   if(centralState?.is_central && !centralSchoolMode){await openCentral();return;}
   const u = App.user;
   if (!u) return;
-  await loadProjects();  // โหลด dropdown โครงการทุก role
   if (u.role === 'inspector') {
     showView('Inspector');
-    await loadInspectorList(); // badge updated inside
+    await Promise.all([loadProjects(), loadInspectorList()]);
   } else if (u.role === 'admin') {
-    await loadRequesters();
-    prepareTeacherForm();
     showView('Admin');
     bindSettingsForm();
-    await loadAdminList();
-    // admin ก็ควรเห็น badge รอตรวจรับ
-    try {
-      const res = await api('listRequests',{ role:'inspector' });
-      if (res.ok) updateInspectorBadge(res.requests||[]);
-    } catch(e){}
+    await Promise.all([loadProjects(), loadRequesters(), loadAdminList()]);
+    if (App.user) prepareTeacherForm();
   } else {
     showView('Teacher');
+    await loadProjects();
     prepareTeacherForm();
     await loadMyRequests();
   }
@@ -4112,9 +4107,18 @@ async function loadAdminList() {
     if (!res.ok) throw new Error(res.message);
     App._adminRows = res.requests||[];
     renderAdminList(App._adminRows);
-    const db = await api('getDashboard');
-    if (db.ok) { renderAdminDashboard(db.summary||{}, db.status_count||{}, db.departments||[]); }
+    updateInspectorBadge(App._adminRows);
   } catch(e){ console.error(e); }
+  finally { setLoading(false); }
+}
+
+async function loadAdminDashboard() {
+  setLoading(true, 'กำลังโหลดสถิติ...');
+  try {
+    const db = await api('getDashboard');
+    if (!db.ok) throw new Error(db.message||'โหลดสถิติไม่สำเร็จ');
+    renderAdminDashboard(db.summary||{}, db.status_count||{}, db.departments||[]);
+  } catch(e){ toast(e.message,'error'); }
   finally { setLoading(false); }
 }
 
