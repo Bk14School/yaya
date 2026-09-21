@@ -2842,27 +2842,7 @@ function updateTopbarBase() {
 }
 
 // ── Init ──────────────────────────────────────────────────────
-async function initApp() {
-  if (!(await centralStart())) return;
-  updateTopbar();
-
-  setLoading(true, 'กำลังโหลดข้อมูล...');
-  try {
-    const [sp, st] = await Promise.all([api('getSchoolProfile'), api('getSystemSettings')]);
-    if (sp.ok) { App.schoolProfile = sp.profile||{}; bindSchoolToUI(); }
-    if (st.ok) App.systemSettings = st.settings||{};
-  } catch(e){ console.error(e); }
-  finally { setLoading(false); }
-
-  if (App.user) {
-    await afterLogin();
-  } else {
-    showView('Public');
-    await loadPublicDashboard();
-  }
-
-  if(!authBound){bindEvents();authBound=true;}
-}
+async function initApp() { await centralInit(); }
 
 async function afterLogin() {
   if(centralState?.is_central && !centralSchoolMode){await openCentral();return;}
@@ -4367,6 +4347,31 @@ document.addEventListener('DOMContentLoaded', () => {
 let centralState=null, centralRegistry=null;
 let centralDashboardScope='year';
 let centralSchoolMode=false;
+async function centralInit(){
+  setLoading(true,'กำลังโหลดข้อมูลโรงเรียน...');
+  try{
+    let chosen={};try{chosen=JSON.parse(localStorage.getItem('school_context')||'{}');}catch(e){}
+    let res=await api('schoolBootstrap',{...chosen,school_mode:centralSchoolMode});
+    if(!res.ok && chosen.school_id)res=await api('schoolBootstrap',{school_mode:centralSchoolMode});
+    if(!res.ok)throw Error(res.message);
+    centralState=res;App.user=res.user;updateTopbar();
+    if(res.is_central && !centralSchoolMode){await openCentral(res);}
+    else{
+      const data=res.bootstrap;if(!data)throw Error('ข้อมูลเริ่มต้นไม่ครบ กรุณาลองใหม่');
+      App.schoolProfile=data.profile;App.systemSettings=data.settings;
+      bindSchoolToUI();
+      _cachedProjects=data.projects;populateProjectDropdowns();
+      requesterChoices=data.requesters;
+      if($('requesterNames'))$('requesterNames').innerHTML=requesterChoices.map(r=>'<option value="'+escHtml(r.full_name)+'">'+escHtml(r.department||'')+'</option>').join('');
+      App._adminRows=data.requests;
+      showView('Admin');bindSettingsForm();renderAdminList(App._adminRows);updateInspectorBadge(App._adminRows);prepareTeacherForm();
+      if($('topFiscalYear'))$('topFiscalYear').textContent='ปีงบประมาณ '+res.fiscal_year;
+      if($('sidebarSchoolName'))$('sidebarSchoolName').textContent=data.profile.school_name;
+    }
+    if(!authBound){bindEvents();authBound=true;}
+  }catch(e){toast(e.message,'error');}
+  finally{setLoading(false);}
+}
 function updateTopbar(){
   updateTopbarBase();
   if(!centralState?.is_central)return;
@@ -4397,11 +4402,11 @@ async function centralStart() {
 function centralFillYears(years) {
   $('centralYear').innerHTML=years.map(y=>'<option value="'+escHtml(y.fiscal_year)+'">'+escHtml(y.fiscal_year)+' — '+(y.status==='open'?'เปิดบันทึก':'ดูย้อนหลัง')+'</option>').join('');
 }
-async function openCentral() {
+async function openCentral(initialContext) {
  if(centralState?.is_central)centralSchoolMode=false;
  showView('Central');setLoading(true,'กำลังโหลดทะเบียนโรงเรียน...');
  try {
-  const res=await api('centralContext');if(!res.ok)throw new Error(res.message);centralState=res;
+  const res=initialContext||await api('centralContext');if(!res.ok)throw new Error(res.message);centralState=res;
   $('centralPageTitle').textContent=res.is_central?'ผู้ดูแลระบบกลาง':'โรงเรียนและปีงบประมาณ';
   $('centralIdentity').textContent=res.is_central?'ภาพรวมโรงเรียน คำขอสมัคร และบัญชีผู้ดูแล':res.email;
   updateTopbar();$('centralAdminPanel').style.display=res.is_central?'':'none';$('schoolContextPanel').hidden=res.is_central;
