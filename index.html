@@ -4355,6 +4355,7 @@ async function centralInit(){
     if(!res.ok && chosen.school_id)res=await api('schoolBootstrap',{school_mode:centralSchoolMode});
     if(!res.ok)throw Error(res.message);
     centralState=res;App.user=res.user;updateTopbar();
+    if($('schoolGatePreview'))$('schoolGatePreview').hidden=true;
     if(res.is_central && !centralSchoolMode){await openCentral(res);}
     else{
       const data=res.bootstrap;if(!data)throw Error('ข้อมูลเริ่มต้นไม่ครบ กรุณาลองใหม่');
@@ -4619,7 +4620,7 @@ function centralConfirm(message){
 // Local demonstration only. Not included in either production build.
 (()=>{
 let schoolToken='',schoolName='',schoolId='',submissionId='';let imported='',last='',busy=false,schoolEntered=false;
-const originalLanding=passwordLanding;passwordLanding=async function(){await originalLanding();if(!await openPrintLink())schoolGate();};
+const originalLanding=passwordLanding;passwordLanding=async function(){await originalLanding();if(App.user||loginPending||authToken||schoolEntered)return;if(!await openPrintLink())schoolGate();};
 
 const esc=escHtml;
 const money=n=>Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2});
