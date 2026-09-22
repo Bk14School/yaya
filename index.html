@@ -1562,6 +1562,34 @@ document.querySelectorAll('.nav-item').forEach(item => {
   }, {passive:true});
 })();
 </script>
+<script>var Pricing = (function(){
+  const marker='\n@@PRICING_V1@@';
+  const cents=n=>Math.round((n+Number.EPSILON)*100);
+  function number(v,label){const n=Number(v===undefined||v===null||v===""?0:v);if(!Number.isFinite(n)||n<0||n>100000000)throw Error(label+'ไม่ถูกต้อง');return n;}
+  function discount(base,type,value){const v=number(value,'ส่วนลด');if(!['amount','percent'].includes(type||'amount'))throw Error('ประเภทส่วนลดไม่ถูกต้อง');if(type==='percent'&&v>100)throw Error('ส่วนลดต้องไม่เกิน 100%');const d=type==='percent'?Math.round(base*v/100):cents(v);if(d>base)throw Error('ส่วนลดมากกว่ายอดสินค้า');return d;}
+  function calculate(items,rules){
+    rules=rules||{};const mode=rules.vat_mode||'none',rate=number(rules.vat_rate,'อัตรา VAT');
+    if(!['none','exclusive','inclusive'].includes(mode)||rate>100)throw Error('รูปแบบ VAT ไม่ถูกต้อง');
+    let gross=0,lineDiscount=0;
+    const lines=items.map(it=>{const g=cents(number(it.qty,'จำนวน')*number(it.unit_price,'ราคา'));if(!Number.isSafeInteger(g)||g>10000000000)throw Error('ยอดสินค้าเกินขอบเขต');const d=discount(g,it.discount_type,it.discount_value);gross+=g;lineDiscount+=d;return Object.assign({},it,{discount_type:it.discount_type||'amount',discount_value:number(it.discount_value,'ส่วนลด'),discount_amount:d/100,amount:(g-d)/100});});
+    if(!Number.isSafeInteger(gross)||gross>10000000000)throw Error('ยอดรวมเกินขอบเขต');
+    const bill=discount(gross-lineDiscount,rules.discount_type,rules.discount_value),net=gross-lineDiscount-bill;
+    const vat=mode==='exclusive'?Math.round(net*rate/100):mode==='inclusive'?net-Math.round(net*100/(100+rate)):0;
+    const total=mode==='exclusive'?net+vat:net;
+    return {items:lines,rules:{vat_mode:mode,vat_rate:rate,discount_type:rules.discount_type||'amount',discount_value:number(rules.discount_value,'ส่วนลด')},gross:gross/100,line_discount:lineDiscount/100,bill_discount:bill/100,base:(mode==='inclusive'?net-vat:net)/100,vat:vat/100,total:total/100};
+  }
+  function metadata(req){const s=String(req?.notes||''),i=s.lastIndexOf(marker);if(i<0)return null;try{return JSON.parse(s.slice(i+marker.length));}catch(e){throw Error('ข้อมูล VAT/ส่วนลดเดิมไม่สมบูรณ์');}}
+  function clean(notes){return String(notes||'').split(marker)[0];}
+  function baht(value){
+    const words=['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'],places=['','สิบ','ร้อย','พัน','หมื่น','แสน'];
+    function read(s){s=String(Number(s));if(s==='0')return '';if(s.length>6)return read(s.slice(0,-6))+'ล้าน'+read(s.slice(-6));return [...s].map((ch,i)=>{const n=Number(ch),p=s.length-i-1;if(!n)return '';if(p===1)return n===1?'สิบ':n===2?'ยี่สิบ':words[n]+'สิบ';if(p===0&&n===1&&s.length>1)return 'เอ็ด';return words[n]+places[p];}).join('');}
+    const [whole,fraction]=Number(value).toFixed(2).split('.');return (read(whole)||'ศูนย์')+'บาท'+(Number(fraction)?read(fraction)+'สตางค์':'ถ้วน');
+  }
+  function pack(notes,result){const packed=clean(notes)+marker+JSON.stringify({rules:result.rules,discounts:result.items.map(it=>({discount_type:it.discount_type,discount_value:it.discount_value})),totals:{gross:result.gross,line_discount:result.line_discount,bill_discount:result.bill_discount,base:result.base,vat:result.vat,total:result.total}});if(packed.length>45000)throw Error('รายการสินค้ามากเกินขอบเขตการบันทึก');return packed;}
+  function hydrate(req,items){const m=metadata(req);if(m){req.pricing=m.rules;items.forEach((it,i)=>Object.assign(it,m.discounts[i]||{}));}return {request:req,items};}
+  return {calculate,metadata,clean,pack,hydrate,baht};
+})();
+</script>
 <script>// ==============================
 // Helpers
 // ==============================
@@ -1714,7 +1742,7 @@ function itemTableRows(items, startNo, withPS) {
     const ps = withPS ? `<td style="text-align:center;font-size:13px;">${esc(it.price_source||'')}</td>` : '';
     return `<tr>
       <td style="text-align:center;">${no}</td>
-      <td>${esc(it.item_name||'')}</td>
+      <td>${esc(it.item_name||'')}${Number(it.discount_value)>0?'<br><small>ส่วนลด '+num(it.discount_value)+(it.discount_type==='percent'?'%':' บาท')+' ต่อรายการ</small>':''}</td>
       <td style="text-align:center;">${esc(it.qty||'')}${it.unit ? ' '+esc(it.unit) : ''}</td>
       ${ps}
       <td style="text-align:right;">${it.unit_price ? num(it.unit_price) : ''}</td>
@@ -1727,6 +1755,11 @@ function itemTableRows(items, startNo, withPS) {
 // Main builder
 // ==============================
 function buildPurchasePrintHtml(req, items, settings, school) {
+  if(typeof Pricing!=='undefined')Pricing.hydrate(req,items||[]);
+  const pricing=req.pricing&&typeof Pricing!=='undefined'?Pricing.calculate(items||[],req.pricing):null;
+  if(pricing){items=pricing.items;req={...req,total_amount:pricing.total,total_amount_text:Pricing.baht(pricing.total)};}
+  const pricingRows=pricing?[["ยอดสินค้าก่อนส่วนลด",pricing.gross],["ส่วนลดรายสินค้า",pricing.line_discount],["ส่วนลดท้ายบิล",pricing.bill_discount],["มูลค่าก่อน VAT หลังส่วนลด",pricing.base],["VAT "+pricing.rules.vat_rate+"% ("+({none:'ไม่มี VAT',exclusive:'บวกเพิ่ม',inclusive:'รวมในราคาแล้ว'}[pricing.rules.vat_mode])+")",pricing.vat]].map(([label,value])=>'<tr><td colspan="5" style="text-align:right">'+esc(label)+'</td><td style="text-align:right">'+num(value)+'</td></tr>').join(''):'';
+
   const total        = num(req.total_amount||0);
   const totalText    = amountText(req);
   const reqDate      = thaiDateLong(req.request_date||req.created_at||'');
@@ -1871,6 +1904,7 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       ${itemTableHead(true)}
       <tbody>
         ${itemTableRows(allItems, 0, true)}
+        ${pricingRows}
         <tr>
           <td colspan="3" style="text-align:center;font-weight:700;">รวมเป็นเงินทั้งสิ้น (${totalText})</td>
           <td></td><td></td>
@@ -1985,15 +2019,16 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       ${itemTableHead(true)}
       <tbody>
         ${itemTableRows(allItems, 0, true)}
+        ${pricingRows}
         <tr>
-          <td colspan="4" style="text-align:right;">รวม</td>
+          <td colspan="4" style="text-align:right;">รวมสุทธิ</td>
           <td></td>
           <td style="text-align:right;">${total}</td>
         </tr>
         <tr>
-          <td colspan="4" style="text-align:right;">ภาษีมูลค่าเพิ่ม</td>
+          <td colspan="4" style="text-align:right;">ภาษีมูลค่าเพิ่ม (รวมในยอดสุทธิข้างต้น)</td>
           <td></td>
-          <td style="text-align:right;">-</td>
+          <td style="text-align:right;">${pricing?num(pricing.vat):'-'}</td>
         </tr>
         <tr>
           <td colspan="3" style="text-align:center;font-weight:700;">รวมเป็นเงินทั้งสิ้น (${totalText})</td>
@@ -2108,13 +2143,14 @@ function buildPurchasePrintHtml(req, items, settings, school) {
           const no = it.item_name ? i+1 : '';
           return `<tr>
             <td style="text-align:center;">${no}</td>
-            <td>${esc(it.item_name||'')}</td>
+            <td>${esc(it.item_name||'')}${Number(it.discount_value)>0?'<br><small>ส่วนลด '+num(it.discount_value)+(it.discount_type==='percent'?'%':' บาท')+' ต่อรายการ</small>':''}</td>
             <td style="text-align:center;">${esc(it.qty||'')}</td>
             <td style="text-align:center;">${esc(it.unit||'')}</td>
             <td style="text-align:right;">${it.unit_price ? num(it.unit_price) : ''}</td>
             <td style="text-align:right;">${it.amount ? num(it.amount) : ''}</td>
           </tr>`;
         }).join('')}
+        ${pricingRows}
         <tr>
           <td colspan="3" style="text-align:center;">(${totalText})</td>
           <td colspan="2" style="text-align:right;font-weight:700;">รวมทั้งสิ้น</td>
@@ -2255,8 +2291,8 @@ function buildPurchasePrintHtml(req, items, settings, school) {
       <tr><td style="width:28px;vertical-align:top;">๑.</td><td>ทราบผลการตรวจรับงานตามนัยข้อ 175 (4) แห่งระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ.2560</td></tr>
       <tr><td style="vertical-align:top;">๒.</td><td>อนุมัติจ่ายเงินให้แก่ ร้าน/หจก./บริษัท ${FD(80,esc(req.vendor_name||''))} เป็นเงิน ${FD(0,netPay)} บาท (${FD(0,totalText)}) รายละเอียดดังนี้
         <table style="border-collapse:collapse;font-size:14px;margin:2px 0 0 16px;line-height:1.5;">
-          <tr><td style="padding:1px 8px 1px 0;min-width:200px;">มูลค่าสินค้าหรือบริการ</td><td style="text-align:right;min-width:80px;">${total}</td><td style="padding-left:4px;">บาท</td></tr>
-          <tr><td>บวก ภาษีมูลค่าเพิ่ม</td><td style="text-align:right;">-</td><td style="padding-left:4px;">บาท</td></tr>
+          <tr><td style="padding:1px 8px 1px 0;min-width:200px;">มูลค่าสินค้าหรือบริการหลังส่วนลด (ก่อน VAT)</td><td style="text-align:right;min-width:80px;">${pricing?num(pricing.base):total}</td><td style="padding-left:4px;">บาท</td></tr>
+          <tr><td>ภาษีมูลค่าเพิ่ม</td><td style="text-align:right;">${pricing?num(pricing.vat):'-'}</td><td style="padding-left:4px;">บาท</td></tr>
           <tr><td>จำนวนเงินที่ขอเบิกทั้งสิ้น</td><td style="text-align:right;">${total}</td><td style="padding-left:4px;">บาท</td></tr>
           <tr><td>หัก ภาษีเงินได้</td><td style="text-align:right;">${whtax}</td><td style="padding-left:4px;">บาท</td></tr>
           <tr><td>ค่าปรับ</td><td style="text-align:right;">${penalty}</td><td style="padding-left:4px;">บาท</td></tr>
@@ -2526,6 +2562,7 @@ function todayISO() {
 }
 
 function numberToThai(num) {
+  if(typeof Pricing!=='undefined')return Pricing.baht(num||0);
   num = Number(num||0);
   if (!num) return 'ศูนย์บาทถ้วน';
   const n = ['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
@@ -3275,6 +3312,7 @@ function handleLogout() {
 
 // ── Teacher view ──────────────────────────────────────────────
 function prepareTeacherForm() {
+  mountPricing('req',null);
   setVal('reqDate', todayISO());
   setVal('reqTeacher', isOperator() ? '' : App.user?.full_name||'');
   setVal('reqDept', isOperator() ? '' : App.user?.department||'');
@@ -3382,6 +3420,8 @@ async function openRequest(id) {
 }
 
 function bindReqToForm(req, items) {
+  if(typeof Pricing!=='undefined')Pricing.hydrate(req,items||[]);
+  mountPricing('req',req);
   updateOperatorForm();
   const fields = ['request_id','request_date','teacher_name','department','project_name','purchase_name','reason',
     'objective','item_detail','budget_source','activity_name',
@@ -3477,8 +3517,10 @@ function updatePoNoEditBtn() {
 async function saveRequestForm() {
   if (!App.user) { toast('กรุณาเข้าสู่ระบบก่อน','error'); return; }
   const totalAmt = calcTotal();
+  if(!Number.isFinite(totalAmt)){toast('กรุณาตรวจส่วนลดและ VAT','error');return false;}
   const req = {
     ...App.currentReq,
+    pricing: pricingRules('req'),
     proc_type:     $('reqProcType')?.value || 'จัดซื้อ',
     po_no:         val('reqPoNo'),
     scope_of_work: $('reqScopeOfWork')?.value || '',
@@ -3622,7 +3664,7 @@ function addItemRow(item={}) {
     <td><input type="text" class="tbl-input item_name" value="${escHtml(item.item_name||'')}" placeholder="ชื่อรายการ"></td>
     <td><input type="number" class="tbl-input qty" value="${escHtml(item.qty||'')}" min="0" step="1" style="text-align:right;"></td>
     <td><input type="text" class="tbl-input unit" value="${escHtml(item.unit||'')}" placeholder="หน่วย"></td>
-    <td><input type="number" class="tbl-input unit_price" value="${escHtml(item.unit_price||'')}" min="0" step="0.01" style="text-align:right;"></td>
+    <td><input type="number" class="tbl-input unit_price" value="${escHtml(item.unit_price||'')}" min="0" step="0.01" style="text-align:right;">${lineDiscountInputs(item)}</td>
     <td><input type="number" class="tbl-input amount" value="${escHtml(item.amount||'')}" readonly style="text-align:right;background:#f8fafc;"></td>
     <td>
       <select class="tbl-input price_source">
@@ -3636,6 +3678,7 @@ function addItemRow(item={}) {
   const q=tr.querySelector('.qty'), p=tr.querySelector('.unit_price'), a=tr.querySelector('.amount');
   const calc=()=>{ a.value=(Number(q.value||0)*Number(p.value||0)).toFixed(2); calcTotal(); };
   q.addEventListener('input',calc); p.addEventListener('input',calc);
+  tr.querySelectorAll('.line-discount-type,.line-discount-value').forEach(el=>el.addEventListener('input',calc));
 
   // Drag-and-drop
   tr.addEventListener('dragstart', e => {
@@ -3662,11 +3705,9 @@ function addItemRow(item={}) {
 }
 
 function calcTotal() {
-  let t=0;
-  document.querySelectorAll('#itemsBody .amount').forEach(a=>{ t+=Number(a.value||0); });
-  if($('totalDisplay')) $('totalDisplay').textContent = fmtMoney(t);
-  if($('totalText'))    $('totalText').textContent    = numberToThai(t);
-  return t;
+  const result=calculateFormPricing('req',getItemsFromTable());
+  if(!result){setEl('totalDisplay','—');return NaN;}
+  setEl('totalDisplay',fmtMoney(result.total));setEl('totalText',numberToThai(result.total));return result.total;
 }
 
 function getItemsFromTable() {
@@ -3679,7 +3720,7 @@ function getItemsFromTable() {
     const amt =Number(tr.querySelector('.amount')?.value||0);
     const ps  =tr.querySelector('.price_source')?.value||'';
     if (!name && !qty && !up) return;
-    items.push({ item_name:name, qty, unit, unit_price:up, amount:amt, price_source:ps });
+    items.push({ item_name:name, qty, unit, unit_price:up, amount:amt, price_source:ps,discount_type:tr.querySelector('.line-discount-type')?.value||'amount',discount_value:Number(tr.querySelector('.line-discount-value')?.value||0) });
   });
   return items;
 }
@@ -3842,6 +3883,7 @@ async function openInspectForm(id) {
     setVal('inspEditVendorBankBranch',   req.vendor_bank_branch||'');
 
     // ── ตารางรายการพัสดุ editable ──
+    mountPricing('insp',req);
     const tbody = $('inspItemsBody');
     if (tbody) {
       tbody.innerHTML = '';
@@ -3870,7 +3912,7 @@ async function openInspectForm(id) {
     setVal('inspLateDays',       req.late_days||'0');
     setVal('inspPenalty',        req.penalty||'0');
     setVal('inspWithholdingTax', req.withholding_tax||'0');
-    setVal('inspNotes',          req.notes||'');
+    setVal('inspNotes',          Pricing.clean(req.notes));
     setVal('inspNewStatus', ['ร่าง','รออนุมัติ'].includes(req.status) ? 'ตรวจรับแล้ว' : req.status||'ตรวจรับแล้ว');
 
     // auto-calc penalty
@@ -3902,7 +3944,7 @@ function inspAddItemRow(item={}) {
     <td style="padding:4px 6px;"><input type="text" class="tbl-input insp-name" value="${escHtml(item.item_name||'')}" placeholder="ชื่อรายการ" style="width:100%;border:none;background:transparent;font-size:13px;padding:4px;"></td>
     <td style="padding:4px 6px;"><input type="number" class="tbl-input insp-qty" value="${escHtml(String(item.qty||''))}" min="0" step="1" style="width:100%;border:none;background:transparent;font-size:13px;text-align:right;padding:4px;"></td>
     <td style="padding:4px 6px;"><input type="text" class="tbl-input insp-unit" value="${escHtml(item.unit||'')}" placeholder="หน่วย" style="width:100%;border:none;background:transparent;font-size:13px;padding:4px;"></td>
-    <td style="padding:4px 6px;"><input type="number" class="tbl-input insp-price" value="${escHtml(String(item.unit_price||''))}" min="0" step="0.01" style="width:100%;border:none;background:transparent;font-size:13px;text-align:right;padding:4px;"></td>
+    <td style="padding:4px 6px;"><input type="number" class="tbl-input insp-price" value="${escHtml(String(item.unit_price||''))}" min="0" step="0.01" style="width:100%;border:none;background:transparent;font-size:13px;text-align:right;padding:4px;">${lineDiscountInputs(item)}</td>
     <td style="padding:4px 6px;"><select class="tbl-input insp-ps" style="width:100%;border:none;background:transparent;font-size:12px;padding:2px;">${psOpts}</select></td>
     <td style="padding:4px 6px;text-align:right;font-size:13px;font-weight:600;" class="insp-amt">${item.amount ? fmtMoney(item.amount) : ''}</td>
     <td style="padding:4px 6px;text-align:center;"><button type="button" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:14px;" onclick="if(confirm('ลบรายการนี้?')){this.closest('tr').remove();inspCalcTotal();}">✕</button></td>`;
@@ -3913,6 +3955,7 @@ function inspAddItemRow(item={}) {
     inspCalcTotal();
   };
   q.addEventListener('input', calc); p.addEventListener('input', calc);
+  tr.querySelectorAll('.line-discount-type,.line-discount-value').forEach(el=>el.addEventListener('input',calc));
   // focus style
   tr.querySelectorAll('.tbl-input').forEach(el => {
     el.addEventListener('focus', () => el.style.outline = '2px solid #2563eb');
@@ -3922,15 +3965,8 @@ function inspAddItemRow(item={}) {
 }
 
 function inspCalcTotal() {
-  let total = 0;
-  document.querySelectorAll('#inspItemsBody tr').forEach(tr => {
-    const q = tr.querySelector('.insp-qty');
-    const p = tr.querySelector('.insp-price');
-    total += Number(q?.value||0) * Number(p?.value||0);
-  });
-  const el = $('inspAmount');
-  if (el) el.textContent = fmtMoney(total);
-  return total;
+  const result=calculateFormPricing('insp',inspGetItemsFromTable());
+  setEl('inspAmount',result?fmtMoney(result.total):'—');return result?result.total:NaN;
 }
 
 function inspGetItemsFromTable() {
@@ -3943,7 +3979,7 @@ function inspGetItemsFromTable() {
     const amt   = qty * price;
     const ps    = tr.querySelector('.insp-ps')?.value||'';
     if (!name && !qty && !price) return;
-    items.push({ item_id: `${App.currentId}-I${i+1}`, request_id: App.currentId, item_name: name, qty, unit, unit_price: price, amount: amt, price_source: ps });
+    items.push({ item_id: `${App.currentId}-I${i+1}`, request_id: App.currentId, item_name: name, qty, unit, unit_price: price, amount: amt, price_source: ps,discount_type:tr.querySelector('.line-discount-type')?.value||'amount',discount_value:Number(tr.querySelector('.line-discount-value')?.value||0) });
   });
   return items;
 }
@@ -3953,9 +3989,11 @@ async function saveInspectEdit() {
   if (!App.currentId) { toast('กรุณาเลือกคำขอซื้อก่อน','error'); return; }
   const req = App.currentReq || {};
   const newItems = inspGetItemsFromTable();
-  const totalAmt = newItems.reduce((s, it) => s + (it.amount||0), 0);
+  const totalAmt = inspCalcTotal();
+  if(!Number.isFinite(totalAmt)){toast('กรุณาตรวจส่วนลดและ VAT','error');return;}
   const updated = {
     ...req,
+    pricing: pricingRules('insp'),
     proc_type:      $('inspEditProcType')?.value        || req.proc_type,
     po_no:          val('inspEditPoNo')                  || req.po_no,
     request_date:   val('inspEditDate')                  || req.request_date,
@@ -3989,7 +4027,7 @@ async function saveInspectEdit() {
   try {
     const res = await api('saveRequest',{request: updated, items: newItems, caller_role:App.user?.role, caller_id:App.user?.user_id},'POST');
     if (!res.ok) throw new Error(res.message);
-    App.currentReq   = updated;
+    App.currentReq   = res.request || updated;
     App.currentItems = newItems;
     // อัปเดตยอดรวมใน header
     setEl('inspAmount', fmtMoney(totalAmt));
@@ -4343,6 +4381,26 @@ document.addEventListener('DOMContentLoaded', () => {
   passwordLanding();
   initKeyboardShortcuts();
 });
+
+function lineDiscountInputs(item){return '<div style="display:flex;gap:4px;margin-top:5px"><select aria-label="ประเภทส่วนลดรายการ" class="line-discount-type input" style="font-size:11px;padding:2px"><option value="amount">ลดบาท</option><option value="percent" '+(item.discount_type==='percent'?'selected':'')+'>ลด %</option></select><input aria-label="ส่วนลดรายการ" class="line-discount-value input" type="number" min="0" step="0.01" value="'+escHtml(item.discount_value||0)+'" style="width:85px;padding:2px"></div>';}
+function mountPricing(prefix,req){
+  let box=$(prefix+'Pricing');
+  if(!box){box=document.createElement('div');box.id=prefix+'Pricing';box.style.cssText='padding:14px;background:#f1f5ff;border-radius:10px;margin:12px 0';const table=$(prefix==='req'?'itemsBody':'inspItemsBody')?.closest('table');if(!table)return;table.parentElement.after(box);}
+  const rules=req?.pricing||(req&&Pricing.metadata(req)?.rules)||{vat_mode:'none',vat_rate:App.systemSettings.vat_rate||7,discount_type:'amount',discount_value:0};
+  box.innerHTML='<strong>ส่วนลดท้ายบิลและ VAT</strong><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"><label>ส่วนลดท้ายบิล <select class="input" id="'+prefix+'DiscountType"><option value="amount">บาท</option><option value="percent">%</option></select></label><label>จำนวนส่วนลด <input class="input" type="number" min="0" step="0.01" id="'+prefix+'DiscountValue"></label><label>VAT <select class="input" id="'+prefix+'VatMode"><option value="none">ไม่มี VAT</option><option value="exclusive">บวก VAT เพิ่ม</option><option value="inclusive">ราคารวม VAT แล้ว</option></select></label><label>อัตรา VAT (%) <input class="input" type="number" min="0" max="100" step="0.01" id="'+prefix+'VatRate"></label></div><p id="'+prefix+'PricingSummary" role="status" style="margin-top:10px"></p><small>ส่วนลดรายสินค้าเป็นยอดลดของทั้งแถว แล้วหักส่วนลดท้ายบิลก่อนคำนวณ VAT</small>';
+  setVal(prefix+'DiscountType',rules.discount_type);setVal(prefix+'DiscountValue',rules.discount_value||0);setVal(prefix+'VatMode',rules.vat_mode);setVal(prefix+'VatRate',rules.vat_rate);
+  box.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',()=>prefix==='req'?calcTotal():inspCalcTotal()));
+}
+function pricingRules(prefix){return {vat_mode:val(prefix+'VatMode')||'none',vat_rate:Number(val(prefix+'VatRate')||0),discount_type:val(prefix+'DiscountType')||'amount',discount_value:Number(val(prefix+'DiscountValue')||0)};}
+function calculateFormPricing(prefix,items){
+  try{
+    const result=Pricing.calculate(items,pricingRules(prefix));
+    const rows=Array.from(document.querySelectorAll(prefix==='req'?'#itemsBody tr':'#inspItemsBody tr')).filter(tr=>{const name=tr.querySelector(prefix==='req'?'.item_name':'.insp-name')?.value.trim();const qty=Number(tr.querySelector(prefix==='req'?'.qty':'.insp-qty')?.value||0);const price=Number(tr.querySelector(prefix==='req'?'.unit_price':'.insp-price')?.value||0);return name||qty||price;});
+    result.items.forEach((it,i)=>{const el=rows[i]?.querySelector(prefix==='req'?'.amount':'.insp-amt');if(el){if(prefix==='req')el.value=it.amount.toFixed(2);else el.textContent=fmtMoney(it.amount);}});
+    setEl(prefix+'PricingSummary','ยอดสินค้า '+fmtMoney(result.gross)+' − ส่วนลดรายการ '+fmtMoney(result.line_discount)+' − ส่วนลดท้ายบิล '+fmtMoney(result.bill_discount)+' | ก่อน VAT '+fmtMoney(result.base)+' | VAT '+fmtMoney(result.vat)+' | สุทธิ '+fmtMoney(result.total)+' บาท');
+    return result;
+  }catch(e){setEl(prefix+'PricingSummary',e.message);return null;}
+}
 
 let centralState=null, centralRegistry=null;
 let centralDashboardScope='year';
